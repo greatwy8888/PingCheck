@@ -264,8 +264,12 @@ class MainActivity : android.app.Activity() {
                 val latency = parsePingTime(output)
 
                 // Toybox 成功输出包含 "icmp_seq" 和 "time="。
-                if (exitCode == 0 && latency != null &&
-                    (lower.contains("icmp_seq") || lower.contains("icmp_req"))) {
+                // 以真实 ICMP 回包和 RTT 为最终依据，不依赖进程退出码。
+                if (latency != null &&
+                    (lower.contains("bytes from") ||
+                     lower.contains("icmp_seq") ||
+                     lower.contains("icmp_req") ||
+                     lower.contains("reply from"))) {
                     return PingResult(PingStatus.SUCCESS, latency, cleanDetail(output))
                 }
 
