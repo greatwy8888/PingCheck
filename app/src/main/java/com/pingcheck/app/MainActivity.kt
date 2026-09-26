@@ -223,9 +223,9 @@ class MainActivity : android.app.Activity() {
             val result = runPingProcess(host, addr is Inet6Address)
             when (result.status) {
                 PingStatus.SUCCESS -> if (result.latency != null) "🟢 PING通    ${formatLatency(result.latency)} ms" else "🟢 PING通"
-                PingStatus.TIMEOUT -> "🔴 PING超时"
-                PingStatus.UNAVAILABLE -> "⚠️ Android系统无法执行ICMP"
-                else -> "🔴 PING失败"
+                PingStatus.TIMEOUT -> "🔴 PING超时" + if (result.detail.isNotEmpty()) "\n" + result.detail else ""
+                PingStatus.UNAVAILABLE -> "⚠️ ICMP不可用" + if (result.detail.isNotEmpty()) "\n" + result.detail else ""
+                else -> "🔴 PING失败" + if (result.detail.isNotEmpty()) "\n" + result.detail else ""
             }
         } catch (_: Exception) {
             "🔴 地址解析失败"
@@ -233,7 +233,7 @@ class MainActivity : android.app.Activity() {
     }
 
     private enum class PingStatus { SUCCESS, TIMEOUT, UNAVAILABLE, FAILED }
-    private data class PingResult(val status: PingStatus, val latency: Double? = null)
+    private data class PingResult(val status: PingStatus, val latency: Double? = null, val detail: String = "")
 
     private fun runPingProcess(host: String, v6: Boolean): PingResult {
         // Android Toybox 自带 ping，直接调用 toybox ping 可避免 /system/bin/ping
@@ -250,6 +250,7 @@ class MainActivity : android.app.Activity() {
 
         var executableFound = false
         var timeoutSeen = false
+        var timeoutDetail = ""
 
         for (cmd in commands) {
             try {
@@ -265,14 +266,14 @@ class MainActivity : android.app.Activity() {
                 // Toybox 成功输出包含 "icmp_seq" 和 "time="。
                 if (exitCode == 0 && latency != null &&
                     (lower.contains("icmp_seq") || lower.contains("icmp_req"))) {
-                    return PingResult(PingStatus.SUCCESS, latency)
+                    return PingResult(PingStatus.SUCCESS, latency, cleanDetail(output))
                 }
 
                 if (lower.contains("permission denied") ||
                     lower.contains("operation not permitted") ||
                     lower.contains("cannot create socket") ||
                     lower.contains("socket") && lower.contains("denied")) {
-                    return PingResult(PingStatus.UNAVAILABLE)
+                    return PingResult(PingStatus.UNAVAILABLE, detail = cleanDetail(output))
                 }
 
                 if (lower.contains("100% packet loss") ||
@@ -280,6 +281,7 @@ class MainActivity : android.app.Activity() {
                     lower.contains("request timeout") ||
                     lower.contains("timed out")) {
                     timeoutSeen = true
+                    timeoutDetail = cleanDetail(output)
                 }
             } catch (_: java.io.IOException) {
                 // 当前 ROM 没有该命令，继续尝试下一种。
@@ -289,13 +291,13 @@ class MainActivity : android.app.Activity() {
         }
 
         return when {
-            timeoutSeen -> PingResult(PingStatus.TIMEOUT)
+            timeoutSeen -> PingResult(PingStatus.TIMEOUT, detail = timeoutDetail)
             executableFound -> PingResult(PingStatus.FAILED)
             else -> PingResult(PingStatus.UNAVAILABLE)
         }
     }
 
-    private fun formatLatency(value: Double): String =
+    private fun cleanDetail(output: String): String {\n        val text = output.trim().replace("\\r", "")\n        return if (text.length > 180) text.take(180) + "…" else text\n    }\n\n    private fun formatLatency(value: Double): String =
         if (value % 1.0 == 0.0) "%.0f".format(value) else "%.1f".format(value)
 
     private fun parsePingTime(output: String): Double? {
