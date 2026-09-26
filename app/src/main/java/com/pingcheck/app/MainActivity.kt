@@ -21,6 +21,8 @@ class MainActivity : android.app.Activity() {
     private val main = Handler(Looper.getMainLooper())
     private lateinit var list: LinearLayout
     private val ips = linkedMapOf<String, View>()
+    private val prefs by lazy { getSharedPreferences("ping_list", Context.MODE_PRIVATE) }
+    private val savedIps = "saved_ips"
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density + 0.5f).toInt()
 
@@ -131,6 +133,7 @@ class MainActivity : android.app.Activity() {
             val ip = input.text.toString().trim()
             if (validate(ip)) {
                 addIp(ip)
+                saveIps()
                 input.text.clear()
             } else {
                 Toast.makeText(this, "请输入有效的 IPv4 或 IPv6 地址", Toast.LENGTH_SHORT).show()
@@ -138,10 +141,23 @@ class MainActivity : android.app.Activity() {
         }
         all.setOnClickListener { ips.keys.toList().forEach { ping(it) } }
         diagnostic.setOnClickListener { showNetworkDiagnostics() }
-        clear.setOnClickListener { ips.clear(); list.removeAllViews() }
+        clear.setOnClickListener { ips.clear(); list.removeAllViews(); saveIps() }
 
-        addIp("8.8.8.8")
-        addIp("1.1.1.1")
+        loadSavedIps()
+    }
+
+    private fun loadSavedIps() {
+        val saved = prefs.getStringSet(savedIps, emptySet())?.toList() ?: emptyList()
+        if (saved.isEmpty()) {
+            addIp("8.8.8.8")
+            addIp("1.1.1.1")
+        } else {
+            saved.forEach { addIp(it) }
+        }
+    }
+
+    private fun saveIps() {
+        prefs.edit().putStringSet(savedIps, ips.keys.toSet()).apply()
     }
 
     private fun validate(s: String): Boolean {
@@ -214,7 +230,7 @@ class MainActivity : android.app.Activity() {
         buttons.addView(detail, detailParams)
 
         val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 13)
-        del.setOnClickListener { ips.remove(ip); list.removeView(card) }
+        del.setOnClickListener { ips.remove(ip); list.removeView(card); saveIps() }
         val delParams = LinearLayout.LayoutParams(0, dp(40), 1f)
         delParams.leftMargin = dp(8)
         buttons.addView(del, delParams)
