@@ -1,6 +1,7 @@
 package com.pingcheck.app
 
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -17,88 +18,129 @@ class MainActivity : android.app.Activity() {
     private lateinit var list: LinearLayout
     private val ips = linkedMapOf<String, View>()
 
+    private fun dp(v: Int): Int =
+        (v * resources.displayMetrics.density + 0.5f).toInt()
+
+    private fun rounded(color: Int, radius: Int): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radius).toFloat()
+        }
+
+    private fun actionView(
+        textValue: String,
+        textColor: Int,
+        bgColor: Int,
+        size: Int = 15
+    ): TextView {
+        return TextView(this).apply {
+            text = textValue
+            textSize = size.toFloat()
+            setTextColor(textColor)
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            isSingleLine = true
+            background = rounded(bgColor, 14)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(245,247,251)
+
+        window.statusBarColor = Color.rgb(246, 248, 252)
+        window.navigationBarColor = Color.rgb(246, 248, 252)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(245,247,251))
-            setPadding(20,18,20,18)
+            setBackgroundColor(Color.rgb(246, 248, 252))
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
         }
 
         val title = TextView(this).apply {
             text = "Ping检测"
             textSize = 28f
-            setTextColor(Color.rgb(17,24,39))
+            setTextColor(Color.rgb(15, 23, 42))
             gravity = Gravity.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD
+            includeFontPadding = false
         }
-        root.addView(title, LinearLayout.LayoutParams(-1,60))
+        header.addView(title, LinearLayout.LayoutParams(-1, dp(38)))
 
         val sub = TextView(this).apply {
-            text = "IPv4 / IPv6 真实网络检测"
-            textSize = 14f
-            setTextColor(Color.rgb(107,114,128))
+            text = "IPv4 / IPv6  ·  真实网络延迟检测"
+            textSize = 13f
+            setTextColor(Color.rgb(100, 116, 139))
             gravity = Gravity.CENTER
+            includeFontPadding = false
         }
-        root.addView(sub, LinearLayout.LayoutParams(-1,40))
+        header.addView(sub, LinearLayout.LayoutParams(-1, dp(28)))
+        root.addView(header, LinearLayout.LayoutParams(-1, dp(72)))
 
-        val inputRow = LinearLayout(this).apply {
+        val inputCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+            background = rounded(Color.WHITE, 18)
+            elevation = dp(2).toFloat()
         }
-        val input = EditText(this).apply {
-            hint = "输入 IP 地址"
-            textSize = 16f
-            setSingleLine(true)
-            setBackgroundResource(R.drawable.bg_input)
-            setPadding(16,0,16,0)
-        }
-        inputRow.addView(input, LinearLayout.LayoutParams(0,56,1f))
 
-        val add = Button(this).apply {
-            text = "添加"
-            textSize = 14f
-            setTextColor(Color.WHITE)
-            setBackgroundResource(R.drawable.bg_button)
-            isAllCaps = false
+        val input = EditText(this).apply {
+            hint = "输入 IPv4 或 IPv6 地址"
+            textSize = 16f
+            setTextColor(Color.rgb(15, 23, 42))
+            setHintTextColor(Color.rgb(148, 163, 184))
+            setSingleLine(true)
+            maxLines = 1
+            includeFontPadding = false
+            gravity = Gravity.CENTER_VERTICAL
+            background = null
+            setPadding(dp(10), 0, dp(8), 0)
+            minWidth = 0
+            minHeight = 0
         }
-        val ap = LinearLayout.LayoutParams(92,56)
-        ap.leftMargin = 10
-        inputRow.addView(add, ap)
-        root.addView(inputRow)
+        inputCard.addView(input, LinearLayout.LayoutParams(0, dp(52), 1f))
+
+        val add = actionView("添加", Color.WHITE, Color.rgb(37, 99, 235), 15)
+        val addParams = LinearLayout.LayoutParams(dp(76), dp(48))
+        addParams.leftMargin = dp(4)
+        inputCard.addView(add, addParams)
+        root.addView(inputCard, LinearLayout.LayoutParams(-1, dp(64)))
 
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val all = Button(this).apply {
-            text = "全部检测"
-            textSize = 15f
-            setTextColor(Color.WHITE)
-            setBackgroundResource(R.drawable.bg_button)
-            isAllCaps = false
-        }
-        val clear = Button(this).apply {
-            text = "清空"
-            textSize = 15f
-            isAllCaps = false
-            setTextColor(Color.DKGRAY)
-        }
-        actions.addView(all, LinearLayout.LayoutParams(0,54,1f))
-        val cp = LinearLayout.LayoutParams(80,54)
-        cp.leftMargin = 8
-        actions.addView(clear, cp)
-        val aparams = LinearLayout.LayoutParams(-1,64)
-        aparams.topMargin = 12
-        root.addView(actions, aparams)
 
-        list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val scroll = ScrollView(this)
+        val all = actionView("全部检测", Color.WHITE, Color.rgb(79, 70, 229), 15)
+        actions.addView(all, LinearLayout.LayoutParams(0, dp(48), 1f))
+
+        val clear = actionView("清空列表", Color.rgb(71, 85, 105), Color.WHITE, 15)
+        val clearParams = LinearLayout.LayoutParams(dp(94), dp(48))
+        clearParams.leftMargin = dp(8)
+        actions.addView(clear, clearParams)
+
+        val actionParams = LinearLayout.LayoutParams(-1, dp(48))
+        actionParams.topMargin = dp(10)
+        root.addView(actions, actionParams)
+
+        list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setClipToPadding(false)
+            setPadding(0, dp(2), 0, 0)
+        }
         scroll.addView(list)
-        root.addView(scroll, LinearLayout.LayoutParams(-1,0,1f))
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+
         setContentView(root)
 
         add.setOnClickListener {
@@ -110,7 +152,11 @@ class MainActivity : android.app.Activity() {
                 Toast.makeText(this, "请输入有效的 IPv4 或 IPv6 地址", Toast.LENGTH_SHORT).show()
             }
         }
-        all.setOnClickListener { ips.keys.toList().forEach { ping(it) } }
+
+        all.setOnClickListener {
+            ips.keys.toList().forEach { ping(it) }
+        }
+
         clear.setOnClickListener {
             ips.clear()
             list.removeAllViews()
@@ -134,73 +180,78 @@ class MainActivity : android.app.Activity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundResource(R.drawable.bg_card)
-            elevation = 2f
+            setPadding(dp(14), dp(10), dp(10), dp(10))
+            background = rounded(Color.WHITE, 18)
+            elevation = dp(2).toFloat()
         }
 
-        val infoBox = LinearLayout(this).apply {
+        val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
         }
 
-        val name = TextView(this).apply {
+        val ipText = TextView(this).apply {
             text = ip
             textSize = 16f
-            setTextColor(Color.rgb(17,24,39))
+            setTextColor(Color.rgb(15, 23, 42))
             typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER_VERTICAL
+            includeFontPadding = false
+            isSingleLine = true
+            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
         }
 
         val result = TextView(this).apply {
             text = "等待检测"
-            textSize = 13f
-            setTextColor(Color.rgb(107,114,128))
-        }
-
-        infoBox.addView(name)
-        infoBox.addView(result)
-        card.addView(infoBox, LinearLayout.LayoutParams(0,-2,1f))
-
-        val btn = TextView(this).apply {
-            text = "检测"
             textSize = 14f
-            setTextColor(Color.rgb(37,99,235))
-            gravity = Gravity.CENTER
-            setPadding(16,10,16,10)
+            setTextColor(Color.rgb(100, 116, 139))
+            gravity = Gravity.CENTER_VERTICAL
+            includeFontPadding = false
+            isSingleLine = true
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        btn.setOnClickListener { ping(ip) }
-        card.addView(btn, LinearLayout.LayoutParams(76,48))
 
-        val del = TextView(this).apply {
-            text = "删除"
-            textSize = 13f
-            setTextColor(Color.rgb(156,163,175))
-            gravity = Gravity.CENTER
-        }
+        info.addView(ipText, LinearLayout.LayoutParams(-1, dp(30)))
+        info.addView(result, LinearLayout.LayoutParams(-1, dp(28)))
+        card.addView(info, LinearLayout.LayoutParams(0, -1, 1f))
+
+        val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 14)
+        check.setOnClickListener { ping(ip) }
+        val checkParams = LinearLayout.LayoutParams(dp(68), dp(44))
+        checkParams.leftMargin = dp(6)
+        card.addView(check, checkParams)
+
+        val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 13)
         del.setOnClickListener {
             ips.remove(ip)
             list.removeView(card)
         }
-        card.addView(del, LinearLayout.LayoutParams(40,48))
+        val delParams = LinearLayout.LayoutParams(dp(68), dp(44))
+        delParams.leftMargin = dp(6)
+        card.addView(del, delParams)
 
-        val p = LinearLayout.LayoutParams(-1,76)
-        p.topMargin = 10
+        val p = LinearLayout.LayoutParams(-1, dp(78))
+        p.topMargin = dp(10)
         list.addView(card, p)
         ips[ip] = card
     }
 
     private fun ping(ip: String) {
-        val card = ips[ip] ?: return
-        val infoBox = (card as LinearLayout).getChildAt(0) as LinearLayout
-        val tv = infoBox.getChildAt(1) as TextView
-        tv.text = "检测中…"
-        tv.setTextColor(Color.rgb(107,114,128))
+        val card = ips[ip] as? LinearLayout ?: return
+        val info = card.getChildAt(0) as LinearLayout
+        val result = info.getChildAt(1) as TextView
+
+        result.text = "正在检测，请稍候…"
+        result.setTextColor(Color.rgb(100, 116, 139))
 
         executor.execute {
             val r = realPing(ip)
             main.post {
-                tv.text = r
-                tv.setTextColor(
-                    if (r.startsWith("🟢")) Color.rgb(22,163,74)
-                    else Color.rgb(220,38,38)
+                if (!ips.containsKey(ip)) return@post
+                result.text = r
+                result.setTextColor(
+                    if (r.startsWith("🟢")) Color.rgb(22, 163, 74)
+                    else Color.rgb(220, 38, 38)
                 )
             }
         }
@@ -210,13 +261,17 @@ class MainActivity : android.app.Activity() {
         return try {
             val addr = InetAddress.getByName(host)
             val start = System.nanoTime()
+
             val ok = if (addr is Inet6Address) {
                 runPingProcess(host, true)
             } else {
                 runPingProcess(host, false)
             }
+
             val ms = (System.nanoTime() - start) / 1_000_000
-            if (ok) "PING通  ${ms} ms" else "PING不通"
+
+            if (ok) "🟢 PING通    ${ms} ms"
+            else "🔴 PING不通"
         } catch (_: Exception) {
             "🔴 PING不通"
         }
@@ -225,13 +280,14 @@ class MainActivity : android.app.Activity() {
     private fun runPingProcess(host: String, v6: Boolean): Boolean {
         return try {
             val cmd = if (v6) {
-                arrayOf("ping","-6","-c","1","-W","2",host)
+                arrayOf("ping", "-6", "-c", "1", "-W", "2", host)
             } else {
-                arrayOf("ping","-c","1","-W","2",host)
+                arrayOf("ping", "-c", "1", "-W", "2", host)
             }
-            val p = ProcessBuilder(*cmd).redirectErrorStream(true).start()
-            val ok = p.waitFor() == 0
-            p.destroy()
+
+            val process = ProcessBuilder(*cmd).redirectErrorStream(true).start()
+            val ok = process.waitFor() == 0
+            process.destroy()
             ok
         } catch (_: Exception) {
             try {
