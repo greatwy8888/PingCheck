@@ -170,15 +170,19 @@ class MainActivity : android.app.Activity() {
             text = "等待检测"
             textSize = 13f
             setTextColor(Color.rgb(100, 116, 139))
-            gravity = Gravity.CENTER_VERTICAL
-            includeFontPadding = false
-            maxLines = 3
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = Gravity.TOP
+            includeFontPadding = true
+            setPadding(0, dp(2), 0, 0)
+            isSingleLine = false
+            maxLines = 8
+            ellipsize = null
+            setHorizontallyScrolling(false)
         }
 
         top.addView(ipText, LinearLayout.LayoutParams(-1, dp(28)))
-        top.addView(result, LinearLayout.LayoutParams(-1, dp(46)))
-        card.addView(top, LinearLayout.LayoutParams(-1, dp(74)))
+        val resultParams = LinearLayout.LayoutParams(-1, dp(110))
+        resultParams.topMargin = dp(2)
+        card.addView(result, resultParams)
 
         val buttons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -197,7 +201,7 @@ class MainActivity : android.app.Activity() {
 
         card.addView(buttons, LinearLayout.LayoutParams(-1, dp(40)))
 
-        val p = LinearLayout.LayoutParams(-1, dp(124))
+        val p = LinearLayout.LayoutParams(-1, dp(190))
         p.topMargin = dp(10)
         list.addView(card, p)
         ips[ip] = card
@@ -205,8 +209,7 @@ class MainActivity : android.app.Activity() {
 
     private fun ping(ip: String) {
         val card = ips[ip] as? LinearLayout ?: return
-        val info = card.getChildAt(0) as LinearLayout
-        val result = info.getChildAt(1) as TextView
+        val result = card.getChildAt(1) as TextView
         result.text = "正在检测，请稍候…"
         result.setTextColor(Color.rgb(100, 116, 139))
 
@@ -306,7 +309,7 @@ class MainActivity : android.app.Activity() {
 
     private fun cleanDetail(output: String): String {
         val text = output.trim().replace("\r", "")
-        return if (text.length > 180) text.take(180) + "…" else text
+        return if (text.length > 800) text.take(800) + "\n[输出过长，仅显示前800字符]" else text
     }
 
     private fun formatLatency(value: Double): String =
