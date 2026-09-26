@@ -135,11 +135,15 @@ class MainActivity : android.app.Activity() {
         addIp("1.1.1.1")
     }
 
-    private fun validate(s: String): Boolean =
-        try {
-            InetAddress.getByName(s)
-            s.isNotBlank() && !s.contains(" ")
-        } catch (_: Exception) { false }
+    private fun validate(s: String): Boolean {
+        if (s.isBlank() || s.contains(" ")) return false
+        return try {
+            val addr = InetAddress.getByName(s)
+            addr.hostAddress != null && (addr is java.net.Inet4Address || addr is Inet6Address)
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     private fun addIp(ip: String) {
         if (ips.containsKey(ip)) return
@@ -180,6 +184,7 @@ class MainActivity : android.app.Activity() {
         }
 
         top.addView(ipText, LinearLayout.LayoutParams(-1, dp(28)))
+        card.addView(top, LinearLayout.LayoutParams(-1, dp(30)))
         val resultParams = LinearLayout.LayoutParams(-1, dp(110))
         resultParams.topMargin = dp(2)
         card.addView(result, resultParams)
