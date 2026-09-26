@@ -170,8 +170,8 @@ class MainActivity : android.app.Activity() {
         card.addView(btn, LinearLayout.LayoutParams(76,48))
 
         val del = TextView(this).apply {
-            text = "×"
-            textSize = 24f
+            text = "删除"
+            textSize = 13f
             setTextColor(Color.rgb(156,163,175))
             gravity = Gravity.CENTER
         }
@@ -216,7 +216,7 @@ class MainActivity : android.app.Activity() {
                 runPingProcess(host, false)
             }
             val ms = (System.nanoTime() - start) / 1_000_000
-            if (ok) "🟢 PING通  ${ms} ms" else "🔴 PING不通"
+            if (ok) "PING通  ${ms} ms" else "PING不通"
         } catch (_: Exception) {
             "🔴 PING不通"
         }
