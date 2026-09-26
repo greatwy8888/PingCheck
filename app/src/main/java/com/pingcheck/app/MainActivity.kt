@@ -301,7 +301,12 @@ class MainActivity : android.app.Activity() {
         }
     }
 
-    private fun cleanDetail(output: String): String {\n        val text = output.trim().replace("\\r", "")\n        return if (text.length > 180) text.take(180) + "…" else text\n    }\n\n    private fun formatLatency(value: Double): String =
+    private fun cleanDetail(output: String): String {
+        val text = output.trim().replace("\r", "")
+        return if (text.length > 180) text.take(180) + "…" else text
+    }
+
+    private fun formatLatency(value: Double): String =
         if (value % 1.0 == 0.0) "%.0f".format(value) else "%.1f".format(value)
 
     private fun parsePingTime(output: String): Double? {
