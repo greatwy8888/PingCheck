@@ -11,6 +11,7 @@ import android.widget.*
 import java.net.Inet6Address
 import java.net.InetAddress
 import java.util.concurrent.Executors
+import java.util.regex.Pattern
 
 class MainActivity : android.app.Activity() {
     private val executor = Executors.newCachedThreadPool()
@@ -18,22 +19,13 @@ class MainActivity : android.app.Activity() {
     private lateinit var list: LinearLayout
     private val ips = linkedMapOf<String, View>()
 
-    private fun dp(v: Int): Int =
-        (v * resources.displayMetrics.density + 0.5f).toInt()
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun rounded(color: Int, radius: Int): GradientDrawable =
-        GradientDrawable().apply {
-            setColor(color)
-            cornerRadius = dp(radius).toFloat()
-        }
+        GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
 
-    private fun actionView(
-        textValue: String,
-        textColor: Int,
-        bgColor: Int,
-        size: Int = 15
-    ): TextView {
-        return TextView(this).apply {
+    private fun actionView(textValue: String, textColor: Int, bgColor: Int, size: Int = 15) =
+        TextView(this).apply {
             text = textValue
             textSize = size.toFloat()
             setTextColor(textColor)
@@ -42,11 +34,9 @@ class MainActivity : android.app.Activity() {
             isSingleLine = true
             background = rounded(bgColor, 14)
         }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         window.statusBarColor = Color.rgb(246, 248, 252)
         window.navigationBarColor = Color.rgb(246, 248, 252)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
@@ -57,11 +47,6 @@ class MainActivity : android.app.Activity() {
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
 
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-        }
-
         val title = TextView(this).apply {
             text = "Ping检测"
             textSize = 28f
@@ -70,17 +55,16 @@ class MainActivity : android.app.Activity() {
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             includeFontPadding = false
         }
-        header.addView(title, LinearLayout.LayoutParams(-1, dp(38)))
+        root.addView(title, LinearLayout.LayoutParams(-1, dp(40)))
 
         val sub = TextView(this).apply {
-            text = "IPv4 / IPv6  ·  真实网络延迟检测"
+            text = "IPv4 / IPv6  ·  ICMP网络连通性检测"
             textSize = 13f
             setTextColor(Color.rgb(100, 116, 139))
             gravity = Gravity.CENTER
             includeFontPadding = false
         }
-        header.addView(sub, LinearLayout.LayoutParams(-1, dp(28)))
-        root.addView(header, LinearLayout.LayoutParams(-1, dp(72)))
+        root.addView(sub, LinearLayout.LayoutParams(-1, dp(28)))
 
         val inputCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -89,7 +73,6 @@ class MainActivity : android.app.Activity() {
             background = rounded(Color.WHITE, 18)
             elevation = dp(2).toFloat()
         }
-
         val input = EditText(this).apply {
             hint = "输入 IPv4 或 IPv6 地址"
             textSize = 16f
@@ -116,23 +99,17 @@ class MainActivity : android.app.Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-
         val all = actionView("全部检测", Color.WHITE, Color.rgb(79, 70, 229), 15)
         actions.addView(all, LinearLayout.LayoutParams(0, dp(48), 1f))
-
         val clear = actionView("清空列表", Color.rgb(71, 85, 105), Color.WHITE, 15)
         val clearParams = LinearLayout.LayoutParams(dp(94), dp(48))
         clearParams.leftMargin = dp(8)
         actions.addView(clear, clearParams)
-
         val actionParams = LinearLayout.LayoutParams(-1, dp(48))
         actionParams.topMargin = dp(10)
         root.addView(actions, actionParams)
 
-        list = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-
+        list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             setClipToPadding(false)
@@ -140,7 +117,6 @@ class MainActivity : android.app.Activity() {
         }
         scroll.addView(list)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-
         setContentView(root)
 
         add.setOnClickListener {
@@ -152,15 +128,8 @@ class MainActivity : android.app.Activity() {
                 Toast.makeText(this, "请输入有效的 IPv4 或 IPv6 地址", Toast.LENGTH_SHORT).show()
             }
         }
-
-        all.setOnClickListener {
-            ips.keys.toList().forEach { ping(it) }
-        }
-
-        clear.setOnClickListener {
-            ips.clear()
-            list.removeAllViews()
-        }
+        all.setOnClickListener { ips.keys.toList().forEach { ping(it) } }
+        clear.setOnClickListener { ips.clear(); list.removeAllViews() }
 
         addIp("8.8.8.8")
         addIp("1.1.1.1")
@@ -170,9 +139,7 @@ class MainActivity : android.app.Activity() {
         try {
             InetAddress.getByName(s)
             s.isNotBlank() && !s.contains(" ")
-        } catch (_: Exception) {
-            false
-        }
+        } catch (_: Exception) { false }
 
     private fun addIp(ip: String) {
         if (ips.containsKey(ip)) return
@@ -222,10 +189,7 @@ class MainActivity : android.app.Activity() {
         card.addView(check, checkParams)
 
         val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 13)
-        del.setOnClickListener {
-            ips.remove(ip)
-            list.removeView(card)
-        }
+        del.setOnClickListener { ips.remove(ip); list.removeView(card) }
         val delParams = LinearLayout.LayoutParams(dp(68), dp(44))
         delParams.leftMargin = dp(6)
         card.addView(del, delParams)
@@ -240,7 +204,6 @@ class MainActivity : android.app.Activity() {
         val card = ips[ip] as? LinearLayout ?: return
         val info = card.getChildAt(0) as LinearLayout
         val result = info.getChildAt(1) as TextView
-
         result.text = "正在检测，请稍候…"
         result.setTextColor(Color.rgb(100, 116, 139))
 
@@ -249,10 +212,7 @@ class MainActivity : android.app.Activity() {
             main.post {
                 if (!ips.containsKey(ip)) return@post
                 result.text = r
-                result.setTextColor(
-                    if (r.startsWith("🟢")) Color.rgb(22, 163, 74)
-                    else Color.rgb(220, 38, 38)
-                )
+                result.setTextColor(if (r.startsWith("🟢")) Color.rgb(22, 163, 74) else Color.rgb(220, 38, 38))
             }
         }
     }
@@ -260,41 +220,67 @@ class MainActivity : android.app.Activity() {
     private fun realPing(host: String): String {
         return try {
             val addr = InetAddress.getByName(host)
-            val start = System.nanoTime()
-
-            val ok = if (addr is Inet6Address) {
-                runPingProcess(host, true)
+            val v6 = addr is Inet6Address
+            val result = runPingProcess(host, v6)
+            if (result.first) {
+                val latency = result.second
+                if (latency != null) "🟢 PING通    $latency ms" else "🟢 PING通"
             } else {
-                runPingProcess(host, false)
+                "🔴 PING不通"
             }
-
-            val ms = (System.nanoTime() - start) / 1_000_000
-
-            if (ok) "🟢 PING通    ${ms} ms"
-            else "🔴 PING不通"
         } catch (_: Exception) {
             "🔴 PING不通"
         }
     }
 
-    private fun runPingProcess(host: String, v6: Boolean): Boolean {
-        return try {
-            val cmd = if (v6) {
-                arrayOf("ping", "-6", "-c", "1", "-W", "2", host)
-            } else {
-                arrayOf("ping", "-c", "1", "-W", "2", host)
-            }
+    private fun runPingProcess(host: String, v6: Boolean): Pair<Boolean, Long?> {
+        val commands = if (v6) {
+            listOf(
+                arrayOf("/system/bin/ping6", "-c", "1", "-W", "3", host),
+                arrayOf("ping", "-6", "-c", "1", "-W", "3", host),
+                arrayOf("ping6", "-c", "1", "-W", "3", host)
+            )
+        } else {
+            listOf(
+                arrayOf("/system/bin/ping", "-c", "1", "-W", "3", host),
+                arrayOf("ping", "-c", "1", "-W", "3", host)
+            )
+        }
 
-            val process = ProcessBuilder(*cmd).redirectErrorStream(true).start()
-            val ok = process.waitFor() == 0
-            process.destroy()
-            ok
-        } catch (_: Exception) {
+        for (cmd in commands) {
             try {
-                InetAddress.getByName(host).isReachable(2500)
+                val process = ProcessBuilder(*cmd).redirectErrorStream(true).start()
+                val output = process.inputStream.bufferedReader().use { it.readText() }
+                val exitCode = process.waitFor()
+                process.destroy()
+
+                if (exitCode == 0 && output.contains("time=")) {
+                    return Pair(true, parsePingTime(output))
+                }
+                if (exitCode == 0) {
+                    return Pair(true, null)
+                }
             } catch (_: Exception) {
-                false
+                // 尝试下一种 Android ping 命令
             }
         }
+
+        // 最后使用 Android 的可达性检测作为兼容备用方案。
+        return try {
+            val addr = InetAddress.getByName(host)
+            val start = System.nanoTime()
+            val ok = addr.isReachable(3500)
+            val ms = (System.nanoTime() - start) / 1_000_000
+            Pair(ok, if (ok) ms else null)
+        } catch (_: Exception) {
+            Pair(false, null)
+        }
+    }
+
+    private fun parsePingTime(output: String): Long? {
+        val matcher = Pattern.compile("time[=<]([0-9]+(?:\\.[0-9]+)?)").matcher(output)
+        return if (matcher.find()) {
+            matcher.group(1)?.toDoubleOrNull()?.toLong()
+        } else null
     }
 }
