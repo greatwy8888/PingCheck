@@ -220,67 +220,79 @@ class MainActivity : android.app.Activity() {
     private fun realPing(host: String): String {
         return try {
             val addr = InetAddress.getByName(host)
-            val v6 = addr is Inet6Address
-            val result = runPingProcess(host, v6)
-            if (result.first) {
-                val latency = result.second
-                if (latency != null) "🟢 PING通    $latency ms" else "🟢 PING通"
-            } else {
-                "🔴 PING不通"
+            val result = runPingProcess(host, addr is Inet6Address)
+            when (result.status) {
+                PingStatus.SUCCESS -> if (result.latency != null) "🟢 PING通    ${formatLatency(result.latency)} ms" else "🟢 PING通"
+                PingStatus.TIMEOUT -> "🔴 PING超时"
+                PingStatus.UNAVAILABLE -> "⚠️ Android系统无法执行ICMP"
+                else -> "🔴 PING失败"
             }
         } catch (_: Exception) {
-            "🔴 PING不通"
+            "🔴 地址解析失败"
         }
     }
 
-    private fun runPingProcess(host: String, v6: Boolean): Pair<Boolean, Long?> {
+    private enum class PingStatus { SUCCESS, TIMEOUT, UNAVAILABLE, FAILED }
+    private data class PingResult(val status: PingStatus, val latency: Double? = null)
+
+    private fun runPingProcess(host: String, v6: Boolean): PingResult {
         val commands = if (v6) {
             listOf(
                 arrayOf("/system/bin/ping6", "-c", "1", "-W", "3", host),
-                arrayOf("ping", "-6", "-c", "1", "-W", "3", host),
-                arrayOf("ping6", "-c", "1", "-W", "3", host)
+                arrayOf("/system/bin/ping", "-6", "-c", "1", "-W", "3", host),
+                arrayOf("/system/bin/ping", "-6", "-c", "1", "-w", "4", host),
+                arrayOf("ping6", "-c", "1", "-W", "3", host),
+                arrayOf("ping", "-6", "-c", "1", "-W", "3", host)
             )
         } else {
             listOf(
                 arrayOf("/system/bin/ping", "-c", "1", "-W", "3", host),
-                arrayOf("ping", "-c", "1", "-W", "3", host)
+                arrayOf("/system/bin/ping", "-c", "1", "-w", "4", host),
+                arrayOf("ping", "-c", "1", "-W", "3", host),
+                arrayOf("ping", "-c", "1", "-w", "4", host)
             )
         }
+
+        var executableFound = false
+        var timeoutSeen = false
 
         for (cmd in commands) {
             try {
                 val process = ProcessBuilder(*cmd).redirectErrorStream(true).start()
+                executableFound = true
                 val output = process.inputStream.bufferedReader().use { it.readText() }
                 val exitCode = process.waitFor()
                 process.destroy()
 
-                if (exitCode == 0 && output.contains("time=")) {
-                    return Pair(true, parsePingTime(output))
+                val lower = output.lowercase()
+                val latency = parsePingTime(output)
+
+                if (exitCode == 0 && (latency != null || lower.contains("bytes from") || lower.contains("reply from"))) {
+                    return PingResult(PingStatus.SUCCESS, latency)
                 }
-                if (exitCode == 0) {
-                    return Pair(true, null)
+                if (lower.contains("timed out") || lower.contains("timeout") ||
+                    lower.contains("100% packet loss") || lower.contains("100.0% packet loss")) {
+                    timeoutSeen = true
                 }
+            } catch (_: java.io.IOException) {
             } catch (_: Exception) {
-                // 尝试下一种 Android ping 命令
             }
         }
 
-        // 最后使用 Android 的可达性检测作为兼容备用方案。
-        return try {
-            val addr = InetAddress.getByName(host)
-            val start = System.nanoTime()
-            val ok = addr.isReachable(3500)
-            val ms = (System.nanoTime() - start) / 1_000_000
-            Pair(ok, if (ok) ms else null)
-        } catch (_: Exception) {
-            Pair(false, null)
+        return when {
+            timeoutSeen -> PingResult(PingStatus.TIMEOUT)
+            executableFound -> PingResult(PingStatus.FAILED)
+            else -> PingResult(PingStatus.UNAVAILABLE)
         }
     }
 
-    private fun parsePingTime(output: String): Long? {
+    private fun formatLatency(value: Double): String =
+        if (value % 1.0 == 0.0) "%.0f".format(value) else "%.1f".format(value)
+
+    private fun parsePingTime(output: String): Double? {
         val matcher = Pattern.compile("time[=<]([0-9]+(?:\\.[0-9]+)?)").matcher(output)
         return if (matcher.find()) {
-            matcher.group(1)?.toDoubleOrNull()?.toLong()
+            matcher.group(1)?.toDoubleOrNull()
         } else null
     }
 }
