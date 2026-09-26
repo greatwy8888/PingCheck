@@ -145,16 +145,14 @@ class MainActivity : android.app.Activity() {
         if (ips.containsKey(ip)) return
 
         val card = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(10), dp(10), dp(10))
             background = rounded(Color.WHITE, 18)
             elevation = dp(2).toFloat()
         }
 
-        val info = LinearLayout(this).apply {
+        val top = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
         }
 
         val ipText = TextView(this).apply {
@@ -170,31 +168,36 @@ class MainActivity : android.app.Activity() {
 
         val result = TextView(this).apply {
             text = "等待检测"
-            textSize = 14f
+            textSize = 13f
             setTextColor(Color.rgb(100, 116, 139))
             gravity = Gravity.CENTER_VERTICAL
             includeFontPadding = false
-            isSingleLine = true
+            maxLines = 3
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
 
-        info.addView(ipText, LinearLayout.LayoutParams(-1, dp(30)))
-        info.addView(result, LinearLayout.LayoutParams(-1, dp(28)))
-        card.addView(info, LinearLayout.LayoutParams(0, -1, 1f))
+        top.addView(ipText, LinearLayout.LayoutParams(-1, dp(28)))
+        top.addView(result, LinearLayout.LayoutParams(-1, dp(46)))
+        card.addView(top, LinearLayout.LayoutParams(-1, dp(74)))
+
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
 
         val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 14)
         check.setOnClickListener { ping(ip) }
-        val checkParams = LinearLayout.LayoutParams(dp(68), dp(44))
-        checkParams.leftMargin = dp(6)
-        card.addView(check, checkParams)
+        buttons.addView(check, LinearLayout.LayoutParams(0, dp(40), 1f))
 
         val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 13)
         del.setOnClickListener { ips.remove(ip); list.removeView(card) }
-        val delParams = LinearLayout.LayoutParams(dp(68), dp(44))
-        delParams.leftMargin = dp(6)
-        card.addView(del, delParams)
+        val delParams = LinearLayout.LayoutParams(0, dp(40), 1f)
+        delParams.leftMargin = dp(8)
+        buttons.addView(del, delParams)
 
-        val p = LinearLayout.LayoutParams(-1, dp(78))
+        card.addView(buttons, LinearLayout.LayoutParams(-1, dp(40)))
+
+        val p = LinearLayout.LayoutParams(-1, dp(124))
         p.topMargin = dp(10)
         list.addView(card, p)
         ips[ip] = card
