@@ -256,16 +256,14 @@ class MainActivity : android.app.Activity() {
     private data class PingResult(val status: PingStatus, val latency: Double? = null, val detail: String = "")
 
     private fun runPingProcess(host: String, v6: Boolean): PingResult {
-        // Android Toybox 自带 ping，直接调用 toybox ping 可避免 /system/bin/ping
-        // 在不同厂商 ROM 上的符号链接和参数差异。
         val family = if (v6) "-6" else "-4"
         val commands = listOf(
-            arrayOf("/system/bin/toybox", "ping", family, "-c", "1", "-W", "3", host),
-            arrayOf("/system/bin/toybox", "ping", family, "-c", "1", "-w", "4", host),
-            if (v6) arrayOf("/system/bin/ping6", "-c", "1", "-W", "3", host)
-            else arrayOf("/system/bin/ping", "-c", "1", "-W", "3", host),
-            if (v6) arrayOf("ping6", "-c", "1", "-W", "3", host)
-            else arrayOf("ping", "-c", "1", "-W", "3", host)
+            arrayOf("/system/bin/toybox", "ping", family, "-c", "4", "-W", "3", host),
+            arrayOf("/system/bin/toybox", "ping", family, "-c", "4", "-w", "12", host),
+            if (v6) arrayOf("/system/bin/ping6", "-c", "4", "-W", "3", host)
+            else arrayOf("/system/bin/ping", "-c", "4", "-W", "3", host),
+            if (v6) arrayOf("ping6", "-c", "4", "-W", "3", host)
+            else arrayOf("ping", "-c", "4", "-W", "3", host)
         )
 
         var executableFound = false
@@ -277,14 +275,12 @@ class MainActivity : android.app.Activity() {
                 val process = ProcessBuilder(*cmd).redirectErrorStream(true).start()
                 executableFound = true
                 val output = process.inputStream.bufferedReader().use { it.readText() }
-                val exitCode = process.waitFor()
+                process.waitFor()
                 process.destroy()
 
                 val lower = output.lowercase()
                 val latency = parsePingTime(output)
 
-                // Toybox 成功输出包含 "icmp_seq" 和 "time="。
-                // 以真实 ICMP 回包和 RTT 为最终依据，不依赖进程退出码。
                 if (latency != null &&
                     (lower.contains("bytes from") ||
                      lower.contains("icmp_seq") ||
@@ -296,21 +292,22 @@ class MainActivity : android.app.Activity() {
                 if (lower.contains("permission denied") ||
                     lower.contains("operation not permitted") ||
                     lower.contains("cannot create socket") ||
-                    lower.contains("socket") && lower.contains("denied")) {
+                    (lower.contains("socket") && lower.contains("denied"))) {
                     return PingResult(PingStatus.UNAVAILABLE, detail = cleanDetail(output))
                 }
 
                 if (lower.contains("100% packet loss") ||
                     lower.contains("100.0% packet loss") ||
+                    lower.contains("0 received") ||
                     lower.contains("request timeout") ||
-                    lower.contains("timed out")) {
+                    lower.contains("timed out") ||
+                    lower.contains("network is unreachable") ||
+                    lower.contains("no route to host")) {
                     timeoutSeen = true
                     timeoutDetail = cleanDetail(output)
                 }
             } catch (_: java.io.IOException) {
-                // 当前 ROM 没有该命令，继续尝试下一种。
             } catch (_: Exception) {
-                // 继续尝试下一种兼容方式。
             }
         }
 
@@ -318,119 +315,6 @@ class MainActivity : android.app.Activity() {
             timeoutSeen -> PingResult(PingStatus.TIMEOUT, detail = timeoutDetail)
             executableFound -> PingResult(PingStatus.FAILED)
             else -> PingResult(PingStatus.UNAVAILABLE)
-        }
-    }
-
-    private fun showNetworkDiagnostics() {
-        val dialog = android.app.Dialog(this)
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(12))
-            background = rounded(Color.WHITE, 22)
-        }
-
-        val title = TextView(this).apply {
-            text = "网络诊断"
-            textSize = 21f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setTextColor(Color.rgb(15, 23, 42))
-        }
-        box.addView(title, LinearLayout.LayoutParams(-1, dp(34)))
-
-        val note = TextView(this).apply {
-            text = "真实ICMP与DNS分开显示，不把TCP连接当成Ping。"
-            textSize = 12f
-            setTextColor(Color.rgb(100, 116, 139))
-        }
-        box.addView(note, LinearLayout.LayoutParams(-1, dp(42)))
-
-        val result = TextView(this).apply {
-            text = "正在诊断，请稍候…"
-            textSize = 13f
-            setTextColor(Color.rgb(30, 41, 59))
-            isSingleLine = false
-            setHorizontallyScrolling(false)
-        }
-        val scroll = ScrollView(this).apply { addView(result) }
-        box.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-
-        val close = actionView("关闭", Color.WHITE, Color.rgb(37, 99, 235), 14)
-        val closeParams = LinearLayout.LayoutParams(-1, dp(44))
-        closeParams.topMargin = dp(10)
-        box.addView(close, closeParams)
-        close.setOnClickListener { dialog.dismiss() }
-
-        dialog.setContentView(box)
-        dialog.show()
-        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        dialog.window?.setLayout(dp(340), dp(560))
-
-        executor.execute {
-            val report = buildNetworkReport()
-            main.post { if (dialog.isShowing) result.text = report }
-        }
-    }
-
-    private fun buildNetworkReport(): String {
-        val sb = StringBuilder()
-        sb.append("【IPv4 ICMP】\n")
-        sb.append(formatDiagnosticPing("8.8.8.8")).append("\n\n")
-        sb.append(formatDiagnosticPing("1.1.1.1")).append("\n\n")
-        sb.append("【IPv6 ICMP】\n")
-        sb.append(formatDiagnosticPing("2001:4860:4860::8888")).append("\n\n")
-        sb.append(formatDiagnosticPing("2606:4700:4700::1111")).append("\n\n")
-        sb.append("【DNS解析】\n")
-        sb.append(dnsReport()).append("\n\n")
-        sb.append("【当前网络】\n")
-        sb.append(linkReport())
-        return sb.toString()
-    }
-
-    private fun formatDiagnosticPing(host: String): String {
-        val v6 = host.contains(":")
-        val r = runPingProcess(host, v6)
-        return when (r.status) {
-            PingStatus.SUCCESS -> "🟢 " + host + "  →  " +
-                (r.latency?.let { formatLatency(it) + " ms" } ?: "收到ICMP回包")
-            PingStatus.TIMEOUT -> "🔴 " + host + "  →  超时\n" + firstLines(r.detail, 3)
-            PingStatus.UNAVAILABLE -> "⚠️ " + host + "  →  ICMP不可用\n" + firstLines(r.detail, 3)
-            PingStatus.FAILED -> "🔴 " + host + "  →  Ping失败\n" + firstLines(r.detail, 3)
-        }
-    }
-
-    private fun firstLines(text: String, maxLines: Int): String =
-        text.lines().filter { it.isNotBlank() }.take(maxLines).joinToString("\n")
-
-    private fun dnsReport(): String {
-        return try {
-            val start = System.currentTimeMillis()
-            val addresses = InetAddress.getAllByName("dns.google")
-            val ms = System.currentTimeMillis() - start
-            "🟢 dns.google 解析成功，" + addresses.size + " 个地址，耗时约 " + ms + " ms\n" +
-                addresses.take(4).joinToString("\n") { "  " + it.hostAddress }
-        } catch (e: Exception) {
-            "🔴 dns.google 解析失败：" + (e.message ?: "未知错误")
-        }
-    }
-
-    private fun linkReport(): String {
-        return try {
-            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val network = cm.activeNetwork ?: return "🔴 当前没有活动网络"
-            val lp: LinkProperties = cm.getLinkProperties(network)
-                ?: return "⚠️ 无法读取当前网络参数"
-
-            val lines = mutableListOf<String>()
-            lp.linkAddresses.forEach { lines.add("本机地址：" + it.address.hostAddress) }
-            lp.dnsServers.forEach { lines.add("DNS：" + it.hostAddress) }
-            lp.routes.filter { it.isDefaultRoute }.forEach {
-                lines.add("默认网关：" + (it.gateway?.hostAddress ?: "系统路由"))
-            }
-            lines.joinToString("\n").ifEmpty {
-                "⚠️ 当前网络没有可显示的地址/DNS/默认路由信息"
-            }
-        } catch (e: Exception) {
-            "⚠️ 网络信息读取失败：" + (e.message ?: "未知错误")
         }
     }
 
