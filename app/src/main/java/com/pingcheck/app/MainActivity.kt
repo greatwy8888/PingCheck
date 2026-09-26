@@ -236,22 +236,17 @@ class MainActivity : android.app.Activity() {
     private data class PingResult(val status: PingStatus, val latency: Double? = null)
 
     private fun runPingProcess(host: String, v6: Boolean): PingResult {
-        val commands = if (v6) {
-            listOf(
-                arrayOf("/system/bin/ping6", "-c", "1", "-W", "3", host),
-                arrayOf("/system/bin/ping", "-6", "-c", "1", "-W", "3", host),
-                arrayOf("/system/bin/ping", "-6", "-c", "1", "-w", "4", host),
-                arrayOf("ping6", "-c", "1", "-W", "3", host),
-                arrayOf("ping", "-6", "-c", "1", "-W", "3", host)
-            )
-        } else {
-            listOf(
-                arrayOf("/system/bin/ping", "-c", "1", "-W", "3", host),
-                arrayOf("/system/bin/ping", "-c", "1", "-w", "4", host),
-                arrayOf("ping", "-c", "1", "-W", "3", host),
-                arrayOf("ping", "-c", "1", "-w", "4", host)
-            )
-        }
+        // Android Toybox 自带 ping，直接调用 toybox ping 可避免 /system/bin/ping
+        // 在不同厂商 ROM 上的符号链接和参数差异。
+        val family = if (v6) "-6" else "-4"
+        val commands = listOf(
+            arrayOf("/system/bin/toybox", "ping", family, "-c", "1", "-W", "3", host),
+            arrayOf("/system/bin/toybox", "ping", family, "-c", "1", "-w", "4", host),
+            if (v6) arrayOf("/system/bin/ping6", "-c", "1", "-W", "3", host)
+            else arrayOf("/system/bin/ping", "-c", "1", "-W", "3", host),
+            if (v6) arrayOf("ping6", "-c", "1", "-W", "3", host)
+            else arrayOf("ping", "-c", "1", "-W", "3", host)
+        )
 
         var executableFound = false
         var timeoutSeen = false
@@ -267,6 +262,7 @@ class MainActivity : android.app.Activity() {
                 val lower = output.lowercase()
                 val latency = parsePingTime(output)
 
+                // Toybox 成功输出包含 "icmp_seq" 和 "time="。
                 if (exitCode == 0 && latency != null &&
                     (lower.contains("icmp_seq") || lower.contains("icmp_req"))) {
                     return PingResult(PingStatus.SUCCESS, latency)
@@ -274,18 +270,21 @@ class MainActivity : android.app.Activity() {
 
                 if (lower.contains("permission denied") ||
                     lower.contains("operation not permitted") ||
-                    (lower.contains("socket") && (lower.contains("denied") || lower.contains("permission")))) {
+                    lower.contains("cannot create socket") ||
+                    lower.contains("socket") && lower.contains("denied")) {
                     return PingResult(PingStatus.UNAVAILABLE)
                 }
 
                 if (lower.contains("100% packet loss") ||
                     lower.contains("100.0% packet loss") ||
-                    lower.contains("timed out") ||
-                    lower.contains("request timeout")) {
+                    lower.contains("request timeout") ||
+                    lower.contains("timed out")) {
                     timeoutSeen = true
                 }
             } catch (_: java.io.IOException) {
+                // 当前 ROM 没有该命令，继续尝试下一种。
             } catch (_: Exception) {
+                // 继续尝试下一种兼容方式。
             }
         }
 
