@@ -267,11 +267,21 @@ class MainActivity : android.app.Activity() {
                 val lower = output.lowercase()
                 val latency = parsePingTime(output)
 
-                if (exitCode == 0 && (latency != null || lower.contains("bytes from") || lower.contains("reply from"))) {
+                if (exitCode == 0 && latency != null &&
+                    (lower.contains("icmp_seq") || lower.contains("icmp_req"))) {
                     return PingResult(PingStatus.SUCCESS, latency)
                 }
-                if (lower.contains("timed out") || lower.contains("timeout") ||
-                    lower.contains("100% packet loss") || lower.contains("100.0% packet loss")) {
+
+                if (lower.contains("permission denied") ||
+                    lower.contains("operation not permitted") ||
+                    (lower.contains("socket") && (lower.contains("denied") || lower.contains("permission")))) {
+                    return PingResult(PingStatus.UNAVAILABLE)
+                }
+
+                if (lower.contains("100% packet loss") ||
+                    lower.contains("100.0% packet loss") ||
+                    lower.contains("timed out") ||
+                    lower.contains("request timeout")) {
                     timeoutSeen = true
                 }
             } catch (_: java.io.IOException) {
