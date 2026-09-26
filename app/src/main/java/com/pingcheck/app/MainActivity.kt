@@ -2,6 +2,9 @@ package com.pingcheck.app
 
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.LinkProperties
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -101,8 +104,13 @@ class MainActivity : android.app.Activity() {
         }
         val all = actionView("全部检测", Color.WHITE, Color.rgb(79, 70, 229), 15)
         actions.addView(all, LinearLayout.LayoutParams(0, dp(48), 1f))
-        val clear = actionView("清空列表", Color.rgb(71, 85, 105), Color.WHITE, 15)
-        val clearParams = LinearLayout.LayoutParams(dp(94), dp(48))
+        val diagnostic = actionView("网络诊断", Color.rgb(5, 150, 105), Color.rgb(236, 253, 245), 14)
+        val diagnosticParams = LinearLayout.LayoutParams(0, dp(48), 1f)
+        diagnosticParams.leftMargin = dp(8)
+        actions.addView(diagnostic, diagnosticParams)
+
+        val clear = actionView("清空", Color.rgb(71, 85, 105), Color.WHITE, 14)
+        val clearParams = LinearLayout.LayoutParams(dp(58), dp(48))
         clearParams.leftMargin = dp(8)
         actions.addView(clear, clearParams)
         val actionParams = LinearLayout.LayoutParams(-1, dp(48))
@@ -129,6 +137,7 @@ class MainActivity : android.app.Activity() {
             }
         }
         all.setOnClickListener { ips.keys.toList().forEach { ping(it) } }
+        diagnostic.setOnClickListener { showNetworkDiagnostics() }
         clear.setOnClickListener { ips.clear(); list.removeAllViews() }
 
         addIp("8.8.8.8")
@@ -309,6 +318,119 @@ class MainActivity : android.app.Activity() {
             timeoutSeen -> PingResult(PingStatus.TIMEOUT, detail = timeoutDetail)
             executableFound -> PingResult(PingStatus.FAILED)
             else -> PingResult(PingStatus.UNAVAILABLE)
+        }
+    }
+
+    private fun showNetworkDiagnostics() {
+        val dialog = android.app.Dialog(this)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(12))
+            background = rounded(Color.WHITE, 22)
+        }
+
+        val title = TextView(this).apply {
+            text = "网络诊断"
+            textSize = 21f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(Color.rgb(15, 23, 42))
+        }
+        box.addView(title, LinearLayout.LayoutParams(-1, dp(34)))
+
+        val note = TextView(this).apply {
+            text = "真实ICMP与DNS分开显示，不把TCP连接当成Ping。"
+            textSize = 12f
+            setTextColor(Color.rgb(100, 116, 139))
+        }
+        box.addView(note, LinearLayout.LayoutParams(-1, dp(42)))
+
+        val result = TextView(this).apply {
+            text = "正在诊断，请稍候…"
+            textSize = 13f
+            setTextColor(Color.rgb(30, 41, 59))
+            isSingleLine = false
+            setHorizontallyScrolling(false)
+        }
+        val scroll = ScrollView(this).apply { addView(result) }
+        box.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        val close = actionView("关闭", Color.WHITE, Color.rgb(37, 99, 235), 14)
+        val closeParams = LinearLayout.LayoutParams(-1, dp(44))
+        closeParams.topMargin = dp(10)
+        box.addView(close, closeParams)
+        close.setOnClickListener { dialog.dismiss() }
+
+        dialog.setContentView(box)
+        dialog.show()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.setLayout(dp(340), dp(560))
+
+        executor.execute {
+            val report = buildNetworkReport()
+            main.post { if (dialog.isShowing) result.text = report }
+        }
+    }
+
+    private fun buildNetworkReport(): String {
+        val sb = StringBuilder()
+        sb.append("【IPv4 ICMP】\n")
+        sb.append(formatDiagnosticPing("8.8.8.8")).append("\n\n")
+        sb.append(formatDiagnosticPing("1.1.1.1")).append("\n\n")
+        sb.append("【IPv6 ICMP】\n")
+        sb.append(formatDiagnosticPing("2001:4860:4860::8888")).append("\n\n")
+        sb.append(formatDiagnosticPing("2606:4700:4700::1111")).append("\n\n")
+        sb.append("【DNS解析】\n")
+        sb.append(dnsReport()).append("\n\n")
+        sb.append("【当前网络】\n")
+        sb.append(linkReport())
+        return sb.toString()
+    }
+
+    private fun formatDiagnosticPing(host: String): String {
+        val v6 = host.contains(":")
+        val r = runPingProcess(host, v6)
+        return when (r.status) {
+            PingStatus.SUCCESS -> "🟢 " + host + "  →  " +
+                (r.latency?.let { formatLatency(it) + " ms" } ?: "收到ICMP回包")
+            PingStatus.TIMEOUT -> "🔴 " + host + "  →  超时\n" + firstLines(r.detail, 3)
+            PingStatus.UNAVAILABLE -> "⚠️ " + host + "  →  ICMP不可用\n" + firstLines(r.detail, 3)
+            PingStatus.FAILED -> "🔴 " + host + "  →  Ping失败\n" + firstLines(r.detail, 3)
+        }
+    }
+
+    private fun firstLines(text: String, maxLines: Int): String =
+        text.lines().filter { it.isNotBlank() }.take(maxLines).joinToString("\n")
+
+    private fun dnsReport(): String {
+        return try {
+            val start = System.currentTimeMillis()
+            val addresses = InetAddress.getAllByName("dns.google")
+            val ms = System.currentTimeMillis() - start
+            "🟢 dns.google 解析成功，" + addresses.size + " 个地址，耗时约 " + ms + " ms\n" +
+                addresses.take(4).joinToString("\n") { "  " + it.hostAddress }
+        } catch (e: Exception) {
+            "🔴 dns.google 解析失败：" + (e.message ?: "未知错误")
+        }
+    }
+
+    private fun linkReport(): String {
+        return try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = cm.activeNetwork ?: return "🔴 当前没有活动网络"
+            val lp: LinkProperties = cm.getLinkProperties(network)
+                ?: return "⚠️ 无法读取当前网络参数"
+
+            val lines = mutableListOf<String>()
+            lp.linkAddresses.forEach { lines.add("本机地址：" + it.address.hostAddress) }
+            lp.dnsServers.forEach { lines.add("DNS：" + it.hostAddress) }
+            lp.routes.filter { it.isDefaultRoute }.forEach {
+                lines.add("默认网关：" + (it.gateway?.hostAddress ?: "系统路由"))
+            }
+            lines.joinToString("\n").ifEmpty {
+                "⚠️ 当前网络没有可显示的地址/DNS/默认路由信息"
+            }
+        } catch (e: Exception) {
+            "⚠️ 网络信息读取失败：" + (e.message ?: "未知错误")
         }
     }
 
