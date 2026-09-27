@@ -49,18 +49,18 @@ class MainActivity : android.app.Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.rgb(246, 248, 252))
-            setPadding(dp(10), dp(8), dp(10), dp(8))
+            setPadding(dp(10), dp(6), dp(10), dp(6))
         }
 
         val title = TextView(this).apply {
             text = "Ping检测"
-            textSize = 28f
+            textSize = 26f
             setTextColor(Color.rgb(15, 23, 42))
             gravity = Gravity.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             includeFontPadding = false
         }
-        root.addView(title, LinearLayout.LayoutParams(-1, dp(32)))
+        root.addView(title, LinearLayout.LayoutParams(-1, dp(30)))
 
         val sub = TextView(this).apply {
             text = "IPv4 / IPv6  ·  ICMP网络连通性检测"
@@ -69,18 +69,18 @@ class MainActivity : android.app.Activity() {
             gravity = Gravity.CENTER
             includeFontPadding = false
         }
-        root.addView(sub, LinearLayout.LayoutParams(-1, dp(20)))
+        root.addView(sub, LinearLayout.LayoutParams(-1, dp(18)))
 
         val inputCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), dp(6), dp(6), dp(6))
+            setPadding(dp(6), dp(4), dp(6), dp(4))
             background = rounded(Color.WHITE, 18)
             elevation = dp(2).toFloat()
         }
         val input = EditText(this).apply {
             hint = "输入 IPv4 或 IPv6 地址"
-            textSize = 14.5f
+            textSize = 14f
             setTextColor(Color.rgb(15, 23, 42))
             setHintTextColor(Color.rgb(148, 163, 184))
             setSingleLine(true)
@@ -92,31 +92,31 @@ class MainActivity : android.app.Activity() {
             minWidth = 0
             minHeight = 0
         }
-        inputCard.addView(input, LinearLayout.LayoutParams(0, dp(42), 1f))
+        inputCard.addView(input, LinearLayout.LayoutParams(0, dp(38), 1f))
 
-        val add = actionView("添加", Color.WHITE, Color.rgb(37, 99, 235), 15)
-        val addParams = LinearLayout.LayoutParams(dp(68), dp(40))
+        val add = actionView("添加", Color.WHITE, Color.rgb(37, 99, 235), 14)
+        val addParams = LinearLayout.LayoutParams(dp(58), dp(38))
         addParams.leftMargin = dp(4)
         inputCard.addView(add, addParams)
-        root.addView(inputCard, LinearLayout.LayoutParams(-1, dp(52)))
+        root.addView(inputCard, LinearLayout.LayoutParams(-1, dp(46)))
 
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val all = actionView("全部检测", Color.WHITE, Color.rgb(79, 70, 229), 15)
-        actions.addView(all, LinearLayout.LayoutParams(0, dp(40), 1f))
+        val all = actionView("全部检测", Color.WHITE, Color.rgb(79, 70, 229), 14)
+        all.typeface = android.graphics.Typeface.DEFAULT_BOLD\n        actions.addView(all, LinearLayout.LayoutParams(0, dp(38), 1f))
         val diagnostic = actionView("网络诊断", Color.rgb(5, 150, 105), Color.rgb(236, 253, 245), 14)
-        val diagnosticParams = LinearLayout.LayoutParams(0, dp(40), 1f)
+        val diagnosticParams = LinearLayout.LayoutParams(0, dp(38), 1f)
         diagnosticParams.leftMargin = dp(8)
         actions.addView(diagnostic, diagnosticParams)
 
-        val clear = actionView("清空", Color.rgb(71, 85, 105), Color.WHITE, 14)
-        val clearParams = LinearLayout.LayoutParams(dp(54), dp(40))
+        val clear = actionView("清空", Color.rgb(71, 85, 105), Color.WHITE, 13)
+        val clearParams = LinearLayout.LayoutParams(dp(50), dp(38))
         clearParams.leftMargin = dp(8)
         actions.addView(clear, clearParams)
-        val actionParams = LinearLayout.LayoutParams(-1, dp(40))
-        actionParams.topMargin = dp(6)
+        val actionParams = LinearLayout.LayoutParams(-1, dp(46))
+        actionParams.topMargin = dp(4)
         root.addView(actions, actionParams)
 
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -176,14 +176,14 @@ class MainActivity : android.app.Activity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(4), dp(6), dp(4))
+            setPadding(dp(7), dp(4), dp(5), dp(4))
             background = rounded(Color.WHITE, 14)
             elevation = dp(1).toFloat()
         }
 
         val ipText = TextView(this).apply {
             text = ip
-            textSize = 14.5f
+            textSize = 14f
             setTextColor(Color.rgb(15, 23, 42))
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER_VERTICAL
@@ -191,7 +191,7 @@ class MainActivity : android.app.Activity() {
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
         }
-        card.addView(ipText, LinearLayout.LayoutParams(0, dp(38), 1.15f))
+        card.addView(ipText, LinearLayout.LayoutParams(0, dp(38), 1.05f))
 
         val result = TextView(this).apply {
             text = "等待检测"
@@ -202,17 +202,17 @@ class MainActivity : android.app.Activity() {
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        card.addView(result, LinearLayout.LayoutParams(0, dp(38), 0.95f))
+        card.addView(result, LinearLayout.LayoutParams(0, dp(38), 1.35f))
 
-        val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 12)
+        val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 12)\n        check.typeface = android.graphics.Typeface.DEFAULT_BOLD
         check.setOnClickListener { ping(ip) }
-        val checkParams = LinearLayout.LayoutParams(dp(52), dp(32))
+        val checkParams = LinearLayout.LayoutParams(dp(48), dp(32))
         checkParams.leftMargin = dp(5)
         card.addView(check, checkParams)
 
-        val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 12)
+        val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 12)\n        del.typeface = android.graphics.Typeface.DEFAULT_BOLD
         del.setOnClickListener { confirmDeleteIp(ip, card) }
-        val delParams = LinearLayout.LayoutParams(dp(52), dp(32))
+        val delParams = LinearLayout.LayoutParams(dp(48), dp(32))
         delParams.leftMargin = dp(5)
         card.addView(del, delParams)
 
@@ -257,7 +257,7 @@ class MainActivity : android.app.Activity() {
     private fun ping(ip: String) {
         val card = ips[ip] as? LinearLayout ?: return
         val result = card.getChildAt(1) as TextView
-        result.text = "正在检测，请稍候…"
+        result.text = "正在检测…"
         result.setTextColor(Color.rgb(100, 116, 139))
 
         executor.execute {
