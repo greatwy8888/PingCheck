@@ -205,13 +205,15 @@ class MainActivity : android.app.Activity() {
         }
         card.addView(result, LinearLayout.LayoutParams(0, dp(38), 1.35f))
 
-        val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 12)\n        check.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 12)
+        check.typeface = android.graphics.Typeface.DEFAULT_BOLD
         check.setOnClickListener { ping(ip) }
         val checkParams = LinearLayout.LayoutParams(dp(48), dp(32))
         checkParams.leftMargin = dp(5)
         card.addView(check, checkParams)
 
-        val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 12)\n        del.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 12)
+        del.typeface = android.graphics.Typeface.DEFAULT_BOLD
         del.setOnClickListener { confirmDeleteIp(ip, card) }
         val delParams = LinearLayout.LayoutParams(dp(48), dp(32))
         delParams.leftMargin = dp(5)
