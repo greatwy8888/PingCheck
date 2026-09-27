@@ -141,7 +141,7 @@ class MainActivity : android.app.Activity() {
         }
         all.setOnClickListener { ips.keys.toList().forEach { ping(it) } }
         diagnostic.setOnClickListener { showNetworkDiagnostics() }
-        clear.setOnClickListener { ips.clear(); list.removeAllViews(); saveIps() }
+        clear.setOnClickListener { confirmClearAll() }
 
         loadSavedIps()
     }
@@ -230,7 +230,7 @@ class MainActivity : android.app.Activity() {
         buttons.addView(detail, detailParams)
 
         val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 13)
-        del.setOnClickListener { ips.remove(ip); list.removeView(card); saveIps() }
+        del.setOnClickListener { confirmDeleteIp(ip, card) }
         val delParams = LinearLayout.LayoutParams(0, dp(40), 1f)
         delParams.leftMargin = dp(8)
         buttons.addView(del, delParams)
@@ -241,6 +241,37 @@ class MainActivity : android.app.Activity() {
         p.topMargin = dp(10)
         list.addView(card, p)
         ips[ip] = card
+    }
+
+    private fun confirmDeleteIp(ip: String, card: View) {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("删除 IP")
+            .setMessage("确定要删除 " + ip + " 吗？")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("删除") { _, _ ->
+                ips.remove(ip)
+                list.removeView(card)
+                saveIps()
+            }
+            .show()
+    }
+
+    private fun confirmClearAll() {
+        if (ips.isEmpty()) {
+            Toast.makeText(this, "当前没有可清空的 IP", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("清空全部 IP")
+            .setMessage("确定要删除当前保存的全部 " + ips.size + " 个 IP 吗？此操作不可恢复。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("全部清空") { _, _ ->
+                ips.clear()
+                list.removeAllViews()
+                saveIps()
+            }
+            .show()
     }
 
     private fun showPingDetail(ip: String, detail: String) {
