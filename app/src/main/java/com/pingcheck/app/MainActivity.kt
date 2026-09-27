@@ -176,14 +176,9 @@ class MainActivity : android.app.Activity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), dp(4), dp(6), dp(4))
+            setPadding(dp(8), dp(4), dp(6), dp(4))
             background = rounded(Color.WHITE, 14)
             elevation = dp(1).toFloat()
-        }
-
-        val info = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
         }
 
         val ipText = TextView(this).apply {
@@ -196,34 +191,32 @@ class MainActivity : android.app.Activity() {
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
         }
+        card.addView(ipText, LinearLayout.LayoutParams(0, dp(38), 1.15f))
 
         val result = TextView(this).apply {
             text = "等待检测"
             textSize = 11.5f
             setTextColor(Color.rgb(100, 116, 139))
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER
             includeFontPadding = false
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
-
-        info.addView(ipText, LinearLayout.LayoutParams(-1, dp(21)))
-        info.addView(result, LinearLayout.LayoutParams(-1, dp(18)))
-        card.addView(info, LinearLayout.LayoutParams(0, dp(39), 1f))
+        card.addView(result, LinearLayout.LayoutParams(0, dp(38), 0.95f))
 
         val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 12)
         check.setOnClickListener { ping(ip) }
-        val checkParams = LinearLayout.LayoutParams(dp(54), dp(34))
-        checkParams.leftMargin = dp(6)
+        val checkParams = LinearLayout.LayoutParams(dp(52), dp(32))
+        checkParams.leftMargin = dp(5)
         card.addView(check, checkParams)
 
         val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 12)
         del.setOnClickListener { confirmDeleteIp(ip, card) }
-        val delParams = LinearLayout.LayoutParams(dp(54), dp(34))
+        val delParams = LinearLayout.LayoutParams(dp(52), dp(32))
         delParams.leftMargin = dp(5)
         card.addView(del, delParams)
 
-        val p = LinearLayout.LayoutParams(-1, dp(47))
+        val p = LinearLayout.LayoutParams(-1, dp(46))
         p.topMargin = dp(4)
         list.addView(card, p)
         ips[ip] = card
