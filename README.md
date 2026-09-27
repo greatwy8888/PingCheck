@@ -8,3 +8,6 @@
 
 ## GitHub 编译
 上传项目后，进入 Actions → Build Ping检测 APK → Run workflow；完成后在 Artifacts 下载 APK。
+
+## 构建验证
+当前版本正在进行 GitHub Actions 编译验证。 
