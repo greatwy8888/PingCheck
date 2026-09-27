@@ -105,7 +105,8 @@ class MainActivity : android.app.Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         val all = actionView("全部检测", Color.WHITE, Color.rgb(79, 70, 229), 14)
-        all.typeface = android.graphics.Typeface.DEFAULT_BOLD\n        actions.addView(all, LinearLayout.LayoutParams(0, dp(38), 1f))
+        all.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        actions.addView(all, LinearLayout.LayoutParams(0, dp(38), 1f))
         val diagnostic = actionView("网络诊断", Color.rgb(5, 150, 105), Color.rgb(236, 253, 245), 14)
         val diagnosticParams = LinearLayout.LayoutParams(0, dp(38), 1f)
         diagnosticParams.leftMargin = dp(8)
