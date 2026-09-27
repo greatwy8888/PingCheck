@@ -174,19 +174,21 @@ class MainActivity : android.app.Activity() {
         if (ips.containsKey(ip)) return
 
         val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(10), dp(6), dp(8), dp(6))
-            background = rounded(Color.WHITE, 18)
-            elevation = dp(2).toFloat()
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(4), dp(6), dp(4))
+            background = rounded(Color.WHITE, 14)
+            elevation = dp(1).toFloat()
         }
 
-        val top = LinearLayout(this).apply {
+        val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
         }
 
         val ipText = TextView(this).apply {
             text = ip
-            textSize = 16f
+            textSize = 14.5f
             setTextColor(Color.rgb(15, 23, 42))
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER_VERTICAL
@@ -197,48 +199,32 @@ class MainActivity : android.app.Activity() {
 
         val result = TextView(this).apply {
             text = "等待检测"
-            textSize = 13f
+            textSize = 11.5f
             setTextColor(Color.rgb(100, 116, 139))
             gravity = Gravity.CENTER_VERTICAL
             includeFontPadding = false
-            setPadding(0, dp(2), 0, dp(2))
-            isSingleLine = false
-            maxLines = 2
+            isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.END
-            setHorizontallyScrolling(false)
         }
 
-        top.addView(ipText, LinearLayout.LayoutParams(-1, dp(22)))
-        card.addView(top, LinearLayout.LayoutParams(-1, dp(22)))
-        val resultParams = LinearLayout.LayoutParams(-1, dp(28))
-        resultParams.topMargin = 0
-        card.addView(result, resultParams)
+        info.addView(ipText, LinearLayout.LayoutParams(-1, dp(21)))
+        info.addView(result, LinearLayout.LayoutParams(-1, dp(18)))
+        card.addView(info, LinearLayout.LayoutParams(0, dp(39), 1f))
 
-        val buttons = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-
-        val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 14)
+        val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 12)
         check.setOnClickListener { ping(ip) }
-        buttons.addView(check, LinearLayout.LayoutParams(0, dp(32), 1f))
+        val checkParams = LinearLayout.LayoutParams(dp(54), dp(34))
+        checkParams.leftMargin = dp(6)
+        card.addView(check, checkParams)
 
-        val detail = actionView("详情", Color.rgb(71, 85, 105), Color.rgb(248, 250, 252), 13)
-        detail.setOnClickListener { showPingDetail(ip, result.text.toString()) }
-        val detailParams = LinearLayout.LayoutParams(0, dp(32), 1f)
-        detailParams.leftMargin = dp(8)
-        buttons.addView(detail, detailParams)
-
-        val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 13)
+        val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 12)
         del.setOnClickListener { confirmDeleteIp(ip, card) }
-        val delParams = LinearLayout.LayoutParams(0, dp(32), 1f)
-        delParams.leftMargin = dp(8)
-        buttons.addView(del, delParams)
+        val delParams = LinearLayout.LayoutParams(dp(54), dp(34))
+        delParams.leftMargin = dp(5)
+        card.addView(del, delParams)
 
-        card.addView(buttons, LinearLayout.LayoutParams(-1, dp(32)))
-
-        val p = LinearLayout.LayoutParams(-1, dp(100))
-        p.topMargin = dp(6)
+        val p = LinearLayout.LayoutParams(-1, dp(47))
+        p.topMargin = dp(4)
         list.addView(card, p)
         ips[ip] = card
     }
@@ -274,47 +260,6 @@ class MainActivity : android.app.Activity() {
             .show()
     }
 
-    private fun showPingDetail(ip: String, detail: String) {
-        val dialog = android.app.Dialog(this)
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(12))
-            background = rounded(Color.WHITE, 20)
-        }
-
-        val title = TextView(this).apply {
-            text = "Ping详情  ·  " + ip
-            textSize = 18f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setTextColor(Color.rgb(15, 23, 42))
-            includeFontPadding = false
-        }
-        box.addView(title, LinearLayout.LayoutParams(-1, dp(34)))
-
-        val content = TextView(this).apply {
-            text = detail
-            textSize = 12.5f
-            setTextColor(Color.rgb(51, 65, 85))
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            setBackgroundColor(Color.rgb(248, 250, 252))
-            isSingleLine = false
-            setHorizontallyScrolling(false)
-            gravity = Gravity.TOP
-        }
-        val scroll = ScrollView(this).apply { addView(content) }
-        box.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-
-        val close = actionView("关闭", Color.WHITE, Color.rgb(37, 99, 235), 14)
-        val closeParams = LinearLayout.LayoutParams(-1, dp(42))
-        closeParams.topMargin = dp(10)
-        box.addView(close, closeParams)
-        close.setOnClickListener { dialog.dismiss() }
-
-        dialog.setContentView(box)
-        dialog.show()
-        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        dialog.window?.setLayout(dp(340), dp(500))
-    }
 
     private fun ping(ip: String) {
         val card = ips[ip] as? LinearLayout ?: return
