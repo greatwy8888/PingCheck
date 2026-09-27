@@ -49,7 +49,7 @@ class MainActivity : android.app.Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.rgb(246, 248, 252))
-            setPadding(dp(16), dp(12), dp(16), dp(12))
+            setPadding(dp(10), dp(8), dp(10), dp(8))
         }
 
         val title = TextView(this).apply {
@@ -60,16 +60,16 @@ class MainActivity : android.app.Activity() {
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             includeFontPadding = false
         }
-        root.addView(title, LinearLayout.LayoutParams(-1, dp(40)))
+        root.addView(title, LinearLayout.LayoutParams(-1, dp(32)))
 
         val sub = TextView(this).apply {
             text = "IPv4 / IPv6  ·  ICMP网络连通性检测"
-            textSize = 13f
+            textSize = 11.5f
             setTextColor(Color.rgb(100, 116, 139))
             gravity = Gravity.CENTER
             includeFontPadding = false
         }
-        root.addView(sub, LinearLayout.LayoutParams(-1, dp(28)))
+        root.addView(sub, LinearLayout.LayoutParams(-1, dp(20)))
 
         val inputCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -80,7 +80,7 @@ class MainActivity : android.app.Activity() {
         }
         val input = EditText(this).apply {
             hint = "输入 IPv4 或 IPv6 地址"
-            textSize = 16f
+            textSize = 14.5f
             setTextColor(Color.rgb(15, 23, 42))
             setHintTextColor(Color.rgb(148, 163, 184))
             setSingleLine(true)
@@ -92,31 +92,31 @@ class MainActivity : android.app.Activity() {
             minWidth = 0
             minHeight = 0
         }
-        inputCard.addView(input, LinearLayout.LayoutParams(0, dp(52), 1f))
+        inputCard.addView(input, LinearLayout.LayoutParams(0, dp(42), 1f))
 
         val add = actionView("添加", Color.WHITE, Color.rgb(37, 99, 235), 15)
-        val addParams = LinearLayout.LayoutParams(dp(76), dp(48))
+        val addParams = LinearLayout.LayoutParams(dp(68), dp(40))
         addParams.leftMargin = dp(4)
         inputCard.addView(add, addParams)
-        root.addView(inputCard, LinearLayout.LayoutParams(-1, dp(64)))
+        root.addView(inputCard, LinearLayout.LayoutParams(-1, dp(52)))
 
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
         val all = actionView("全部检测", Color.WHITE, Color.rgb(79, 70, 229), 15)
-        actions.addView(all, LinearLayout.LayoutParams(0, dp(48), 1f))
+        actions.addView(all, LinearLayout.LayoutParams(0, dp(40), 1f))
         val diagnostic = actionView("网络诊断", Color.rgb(5, 150, 105), Color.rgb(236, 253, 245), 14)
-        val diagnosticParams = LinearLayout.LayoutParams(0, dp(48), 1f)
+        val diagnosticParams = LinearLayout.LayoutParams(0, dp(40), 1f)
         diagnosticParams.leftMargin = dp(8)
         actions.addView(diagnostic, diagnosticParams)
 
         val clear = actionView("清空", Color.rgb(71, 85, 105), Color.WHITE, 14)
-        val clearParams = LinearLayout.LayoutParams(dp(58), dp(48))
+        val clearParams = LinearLayout.LayoutParams(dp(54), dp(40))
         clearParams.leftMargin = dp(8)
         actions.addView(clear, clearParams)
-        val actionParams = LinearLayout.LayoutParams(-1, dp(48))
-        actionParams.topMargin = dp(10)
+        val actionParams = LinearLayout.LayoutParams(-1, dp(40))
+        actionParams.topMargin = dp(6)
         root.addView(actions, actionParams)
 
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -175,7 +175,7 @@ class MainActivity : android.app.Activity() {
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(10), dp(10), dp(10))
+            setPadding(dp(10), dp(6), dp(8), dp(6))
             background = rounded(Color.WHITE, 18)
             elevation = dp(2).toFloat()
         }
@@ -208,10 +208,10 @@ class MainActivity : android.app.Activity() {
             setHorizontallyScrolling(false)
         }
 
-        top.addView(ipText, LinearLayout.LayoutParams(-1, dp(28)))
-        card.addView(top, LinearLayout.LayoutParams(-1, dp(30)))
-        val resultParams = LinearLayout.LayoutParams(-1, dp(46))
-        resultParams.topMargin = dp(2)
+        top.addView(ipText, LinearLayout.LayoutParams(-1, dp(22)))
+        card.addView(top, LinearLayout.LayoutParams(-1, dp(22)))
+        val resultParams = LinearLayout.LayoutParams(-1, dp(28))
+        resultParams.topMargin = 0
         card.addView(result, resultParams)
 
         val buttons = LinearLayout(this).apply {
@@ -221,24 +221,24 @@ class MainActivity : android.app.Activity() {
 
         val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 14)
         check.setOnClickListener { ping(ip) }
-        buttons.addView(check, LinearLayout.LayoutParams(0, dp(40), 1f))
+        buttons.addView(check, LinearLayout.LayoutParams(0, dp(32), 1f))
 
         val detail = actionView("详情", Color.rgb(71, 85, 105), Color.rgb(248, 250, 252), 13)
         detail.setOnClickListener { showPingDetail(ip, result.text.toString()) }
-        val detailParams = LinearLayout.LayoutParams(0, dp(40), 1f)
+        val detailParams = LinearLayout.LayoutParams(0, dp(32), 1f)
         detailParams.leftMargin = dp(8)
         buttons.addView(detail, detailParams)
 
         val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 13)
         del.setOnClickListener { confirmDeleteIp(ip, card) }
-        val delParams = LinearLayout.LayoutParams(0, dp(40), 1f)
+        val delParams = LinearLayout.LayoutParams(0, dp(32), 1f)
         delParams.leftMargin = dp(8)
         buttons.addView(del, delParams)
 
-        card.addView(buttons, LinearLayout.LayoutParams(-1, dp(40)))
+        card.addView(buttons, LinearLayout.LayoutParams(-1, dp(32)))
 
-        val p = LinearLayout.LayoutParams(-1, dp(128))
-        p.topMargin = dp(10)
+        val p = LinearLayout.LayoutParams(-1, dp(100))
+        p.topMargin = dp(6)
         list.addView(card, p)
         ips[ip] = card
     }
