@@ -260,16 +260,30 @@ class MainActivity : android.app.Activity() {
         }
         card.addView(ipText, LinearLayout.LayoutParams(0, dp(38), 1.05f))
 
-        val result = TextView(this).apply {
-            text = note.ifBlank { "等待检测" }
+        val noteText = TextView(this).apply {
+            text = note
             textSize = 11.5f
-            setTextColor(Color.rgb(100, 116, 139))
-            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(37, 99, 235))
+            gravity = Gravity.CENTER_VERTICAL or Gravity.LEFT
             includeFontPadding = false
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        card.addView(result, LinearLayout.LayoutParams(0, dp(38), 1.35f))
+        val noteParams = LinearLayout.LayoutParams(0, dp(38), 1.05f)
+        noteParams.leftMargin = dp(3)
+        card.addView(noteText, noteParams)
+
+        val result = TextView(this).apply {
+            text = "—"
+            textSize = 12f
+            setTextColor(Color.rgb(100, 116, 139))
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            isSingleLine = true
+        }
+        val resultParams = LinearLayout.LayoutParams(dp(55), dp(38))
+        resultParams.leftMargin = dp(12)
+        card.addView(result, resultParams)
 
         val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 12)
         check.typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -327,18 +341,25 @@ class MainActivity : android.app.Activity() {
 
     private fun ping(ip: String) {
         val card = ips[ip] as? LinearLayout ?: return
-        val result = card.getChildAt(1) as TextView
-        result.text = notes[ip].orEmpty().ifBlank { "检测中…" }
+        val result = card.getChildAt(2) as TextView
+        val check = card.getChildAt(3) as TextView
+
+        check.text = "检测中"
+        check.setTextColor(Color.rgb(37, 99, 235))
+        check.background = rounded(Color.rgb(239, 246, 255), 14)
+        result.text = "—"
         result.setTextColor(Color.rgb(100, 116, 139))
 
         executor.execute {
             val r = realPing(ip)
             main.post {
                 if (!ips.containsKey(ip)) return@post
-                result.text = displayPingResult(ip, r)
+                check.text = "检测"
+                val success = r.contains(" ms")
+                result.text = if (success) r else "-1"
                 result.setTextColor(
-                    if (r.contains(" ms")) Color.rgb(22, 163, 74)
-                    else Color.rgb(100, 116, 139)
+                    if (success) Color.rgb(22, 163, 74)
+                    else Color.rgb(220, 38, 38)
                 )
             }
         }
@@ -349,19 +370,14 @@ class MainActivity : android.app.Activity() {
             val addr = InetAddress.getByName(host)
             val result = runPingProcess(host, addr is Inet6Address)
             when (result.status) {
-                PingStatus.SUCCESS -> result.latency?.let { "${formatLatency(it)} ms" } ?: "—"
-                PingStatus.TIMEOUT -> "—"
-                PingStatus.UNAVAILABLE -> "—"
-                else -> "—"
+                PingStatus.SUCCESS -> result.latency?.let { "${formatLatency(it)} ms" } ?: "-1"
+                PingStatus.TIMEOUT -> "-1"
+                PingStatus.UNAVAILABLE -> "-1"
+                else -> "-1"
             }
         } catch (_: Exception) {
             "—"
         }
-    }
-
-    private fun displayPingResult(ip: String, pingValue: String): String {
-        val note = notes[ip].orEmpty().trim()
-        return if (note.isEmpty()) pingValue else "$note  $pingValue"
     }
 
     private enum class PingStatus { SUCCESS, TIMEOUT, UNAVAILABLE, FAILED }
