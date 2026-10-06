@@ -15,14 +15,18 @@ import java.net.Inet6Address
 import java.net.InetAddress
 import java.util.concurrent.Executors
 import java.util.regex.Pattern
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : android.app.Activity() {
     private val executor = Executors.newCachedThreadPool()
     private val main = Handler(Looper.getMainLooper())
     private lateinit var list: LinearLayout
     private val ips = linkedMapOf<String, View>()
+    private val notes = linkedMapOf<String, String>()
     private val prefs by lazy { getSharedPreferences("ping_list", Context.MODE_PRIVATE) }
     private val savedIps = "saved_ips"
+    private val savedData = "saved_ip_data"
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density + 0.5f).toInt()
 
@@ -133,9 +137,9 @@ class MainActivity : android.app.Activity() {
         add.setOnClickListener {
             val ip = input.text.toString().trim()
             if (validate(ip)) {
-                addIp(ip)
-                saveIps()
-                input.text.clear()
+                showAddIpDialog(ip) {
+                    input.text.clear()
+                }
             } else {
                 Toast.makeText(this, "请输入有效的 IPv4 或 IPv6 地址", Toast.LENGTH_SHORT).show()
             }
@@ -148,17 +152,78 @@ class MainActivity : android.app.Activity() {
     }
 
     private fun loadSavedIps() {
+        val data = prefs.getString(savedData, null)
+        if (!data.isNullOrBlank()) {
+            try {
+                val array = JSONArray(data)
+                for (i in 0 until array.length()) {
+                    val item = array.getJSONObject(i)
+                    val ip = item.optString("ip").trim()
+                    val note = item.optString("note")
+                    if (ip.isNotEmpty() && validate(ip)) addIp(ip, note)
+                }
+                if (ips.isNotEmpty()) return
+            } catch (_: Exception) {
+                // 新格式损坏时继续尝试读取旧格式
+            }
+        }
+
         val saved = prefs.getStringSet(savedIps, emptySet())?.toList() ?: emptyList()
         if (saved.isEmpty()) {
-            addIp("8.8.8.8")
-            addIp("1.1.1.1")
+            addIp("8.8.8.8", "")
+            addIp("1.1.1.1", "")
         } else {
-            saved.forEach { addIp(it) }
+            saved.forEach { addIp(it, "") }
         }
+        saveIps()
     }
 
     private fun saveIps() {
-        prefs.edit().putStringSet(savedIps, ips.keys.toSet()).apply()
+        val array = JSONArray()
+        ips.keys.forEach { ip ->
+            array.put(JSONObject().apply {
+                put("ip", ip)
+                put("note", notes[ip] ?: "")
+            })
+        }
+        prefs.edit()
+            .putString(savedData, array.toString())
+            .putStringSet(savedIps, ips.keys.toSet())
+            .apply()
+    }
+
+    private fun showAddIpDialog(ip: String, onAdded: () -> Unit) {
+        if (ips.containsKey(ip)) {
+            Toast.makeText(this, "这个 IP 已经添加", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val noteInput = EditText(this).apply {
+            hint = "例如：Google DNS"
+            textSize = 15f
+            setSingleLine(true)
+            maxLines = 1
+            setPadding(dp(4), 0, dp(4), 0)
+        }
+
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(4), dp(24), 0)
+        }
+        box.addView(noteInput, LinearLayout.LayoutParams(-1, dp(46)))
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("添加 IP")
+            .setMessage(ip)
+            .setView(box)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("添加") { _, _ ->
+                val note = noteInput.text.toString().trim()
+                addIp(ip, note)
+                saveIps()
+                onAdded()
+            }
+            .show()
     }
 
     private fun validate(s: String): Boolean {
@@ -171,8 +236,9 @@ class MainActivity : android.app.Activity() {
         }
     }
 
-    private fun addIp(ip: String) {
+    private fun addIp(ip: String, note: String = "") {
         if (ips.containsKey(ip)) return
+        notes[ip] = note
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -195,7 +261,7 @@ class MainActivity : android.app.Activity() {
         card.addView(ipText, LinearLayout.LayoutParams(0, dp(38), 1.05f))
 
         val result = TextView(this).apply {
-            text = "等待检测"
+            text = note.ifBlank { "等待检测" }
             textSize = 11.5f
             setTextColor(Color.rgb(100, 116, 139))
             gravity = Gravity.CENTER
@@ -232,6 +298,7 @@ class MainActivity : android.app.Activity() {
             .setNegativeButton("取消", null)
             .setPositiveButton("删除") { _, _ ->
                 ips.remove(ip)
+                notes.remove(ip)
                 list.removeView(card)
                 saveIps()
             }
@@ -250,6 +317,7 @@ class MainActivity : android.app.Activity() {
             .setNegativeButton("取消", null)
             .setPositiveButton("全部清空") { _, _ ->
                 ips.clear()
+                notes.clear()
                 list.removeAllViews()
                 saveIps()
             }
@@ -260,15 +328,18 @@ class MainActivity : android.app.Activity() {
     private fun ping(ip: String) {
         val card = ips[ip] as? LinearLayout ?: return
         val result = card.getChildAt(1) as TextView
-        result.text = "正在检测…"
+        result.text = notes[ip].orEmpty().ifBlank { "检测中…" }
         result.setTextColor(Color.rgb(100, 116, 139))
 
         executor.execute {
             val r = realPing(ip)
             main.post {
                 if (!ips.containsKey(ip)) return@post
-                result.text = r
-                result.setTextColor(if (r.startsWith("🟢")) Color.rgb(22, 163, 74) else Color.rgb(220, 38, 38))
+                result.text = displayPingResult(ip, r)
+                result.setTextColor(
+                    if (r.contains(" ms")) Color.rgb(22, 163, 74)
+                    else Color.rgb(100, 116, 139)
+                )
             }
         }
     }
@@ -278,14 +349,19 @@ class MainActivity : android.app.Activity() {
             val addr = InetAddress.getByName(host)
             val result = runPingProcess(host, addr is Inet6Address)
             when (result.status) {
-                PingStatus.SUCCESS -> if (result.latency != null) "🟢 PING通    ${formatLatency(result.latency)} ms" else "🟢 PING通"
-                PingStatus.TIMEOUT -> "🔴 PING超时" + if (result.detail.isNotEmpty()) "\n" + result.detail else ""
-                PingStatus.UNAVAILABLE -> "⚠️ ICMP不可用" + if (result.detail.isNotEmpty()) "\n" + result.detail else ""
-                else -> "🔴 PING失败" + if (result.detail.isNotEmpty()) "\n" + result.detail else ""
+                PingStatus.SUCCESS -> result.latency?.let { "${formatLatency(it)} ms" } ?: "—"
+                PingStatus.TIMEOUT -> "—"
+                PingStatus.UNAVAILABLE -> "—"
+                else -> "—"
             }
         } catch (_: Exception) {
-            "🔴 地址解析失败"
+            "—"
         }
+    }
+
+    private fun displayPingResult(ip: String, pingValue: String): String {
+        val note = notes[ip].orEmpty().trim()
+        return if (note.isEmpty()) pingValue else "$note  $pingValue"
     }
 
     private enum class PingStatus { SUCCESS, TIMEOUT, UNAVAILABLE, FAILED }
