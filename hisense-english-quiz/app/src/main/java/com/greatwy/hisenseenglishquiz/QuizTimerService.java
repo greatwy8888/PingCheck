@@ -1,0 +1,6 @@
+package com.greatwy.hisenseenglishquiz;
+import android.app.Service; import android.content.Intent; import android.os.IBinder; import android.os.Handler; import android.os.Looper; import android.content.SharedPreferences;
+public class QuizTimerService extends Service { Handler h=new Handler(Looper.getMainLooper()); Runnable task; static final long INTERVAL=900000L;
+ @Override public void onCreate(){super.onCreate();SharedPreferences p=getSharedPreferences("quiz",0);if(p.getLong("next_due",0)==0)p.edit().putLong("next_due",System.currentTimeMillis()+INTERVAL).apply();task=new Runnable(){public void run(){SharedPreferences x=getSharedPreferences("quiz",0);if(System.currentTimeMillis()>=x.getLong("next_due",System.currentTimeMillis()+INTERVAL)){Intent i=new Intent(QuizTimerService.this,QuizActivity.class);i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP);try{startActivity(i);}catch(Exception ignored){}x.edit().putLong("next_due",System.currentTimeMillis()+INTERVAL).apply();}h.postDelayed(this,5000);}};h.post(task);}
+ @Override public int onStartCommand(Intent i,int f,int id){return START_STICKY;} @Override public void onDestroy(){h.removeCallbacks(task);super.onDestroy();} @Override public IBinder onBind(Intent i){return null;}
+}
