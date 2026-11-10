@@ -140,7 +140,6 @@ public class QuizActivity extends Activity {
             btns[i].setTextColor(Color.rgb(18, 45, 82));
             btns[i].setScaleX(1.06f);
             btns[i].setScaleY(1.06f);
-            btns[i].bringToFront();
         } else {
             btns[i].setBackground(background(Color.rgb(35, 94, 155), Color.rgb(120, 175, 225), 2));
             btns[i].setTextColor(Color.WHITE);
@@ -156,8 +155,11 @@ public class QuizActivity extends Activity {
     }
 
     void moveSelection(int direction) {
-        selected = (selected + direction + btns.length) % btns.length;
-        btns[selected].requestFocus();
+        int next = (selected + direction + btns.length) % btns.length;
+        if (btns[next].getVisibility() != View.VISIBLE) return;
+        // Keep answer buttons in fixed positions; move only the focus highlight.
+        btns[next].requestFocus();
+        selected = next;
         styleAllButtons();
     }
 
@@ -185,8 +187,7 @@ public class QuizActivity extends Activity {
                 code == KeyEvent.KEYCODE_ENTER ||
                 code == KeyEvent.KEYCODE_NUMPAD_ENTER) {
                 btns[selected].setPressed(true);
-                btns[selected].setBackground(background(Color.rgb(70, 205, 125), Color.WHITE, 4));
-                feedback.setText("已选择：" + btns[selected].getText());
+                feedback.setText("已按下：" + btns[selected].getText());
                 return true;
             }
         } else if (e.getAction() == KeyEvent.ACTION_UP &&
@@ -194,6 +195,7 @@ public class QuizActivity extends Activity {
                  code == KeyEvent.KEYCODE_ENTER ||
                  code == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
             btns[selected].setPressed(false);
+            styleButton(selected, true);
             answer(selected);
             return true;
         }
@@ -232,7 +234,10 @@ public class QuizActivity extends Activity {
             btns[i].setTag(a[i].equals(word.o[0]));
         }
         styleAllButtons();
-        if (btns[selected].getVisibility() == View.VISIBLE) btns[selected].requestFocus();
+        if (btns[selected].getVisibility() == View.VISIBLE) {
+            btns[selected].requestFocus();
+            styleButton(selected, true);
+        }
     }
 
     void answer(int i) {
