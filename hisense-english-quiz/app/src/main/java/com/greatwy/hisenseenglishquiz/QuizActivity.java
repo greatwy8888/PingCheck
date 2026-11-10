@@ -257,6 +257,20 @@ public class QuizActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        // Android 5.1 supports screen pinning/lock-task entry. On a TV that
+        // is not device-owner managed, the system may still allow an exit gesture.
+        try {
+            startLockTask();
+        } catch (SecurityException ignored) {
+            // Keep the quiz usable if the TV firmware blocks lock-task mode.
+        } catch (IllegalStateException ignored) {
+            // Some vendor TV firmware does not implement pinning normally.
+        }
+    }
+
+    @Override
     public void onBackPressed() {
         feedback.setText("请先答对 5 道题");
     }
