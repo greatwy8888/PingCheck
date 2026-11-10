@@ -1,0 +1,1 @@
+Trigger GitHub Actions rebuild after updating workflow to use JDK 17 for Android SDK setup and JDK 11 for Gradle 6.7.1.
