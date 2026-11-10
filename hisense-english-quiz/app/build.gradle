@@ -1,0 +1,6 @@
+apply plugin: 'com.android.application'
+android {
+ compileSdkVersion 30
+ defaultConfig { applicationId 'com.greatwy.hisenseenglishquiz'; minSdkVersion 22; targetSdkVersion 28; versionCode 1; versionName '1.0' }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+}
