@@ -1,9 +1,13 @@
 name: Build Hisense English Quiz APK
+run-name: Build Hisense English Quiz APK
 'on':
   workflow_dispatch:
   push:
     branches:
       - hisense-english-quiz
+
+permissions:
+  contents: read
 
 jobs:
   build:
