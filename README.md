@@ -1,13 +1,31 @@
-# Ping检测 Android App
+# Serv00账号检测（多账号版）
 
-- App 名称：Ping检测
-- 支持多 IP
-- IPv4 / IPv6
-- 使用 Android 设备真实网络执行 ping；结果受当前 Wi-Fi/移动网络、运营商 IPv6、目标主机 ICMP 策略影响。
-- GitHub Actions 自动生成 APK
+基于原 PingCheck 仓库新建的独立功能分支：feature/serv00-multi-account。
 
-## GitHub 编译
-上传项目后，进入 Actions → Build Ping检测 APK → Run workflow；完成后在 Artifacts 下载 APK。
+## 功能
+- 多账号保存、编辑、删除。
+- 单个账号检测和顺序批量检测。
+- 使用 SSH 密码或粘贴的 SSH 私钥进行真实认证。
+- 只有 SSH 用户认证完成才记录成功；Ping、端口开放或 SSH 握手均不算成功。
+- 每个账号独立保存最近成功登录时间和最多30条检测历史。
+- 最近成功登录达到75天后显示提醒，并通过每日后台任务发送通知。
+- 密码、私钥和检测历史通过 Android Keystore 的 AES-GCM 密钥加密后保存在本机。
+- 首次连接时固定服务器 SSH 主机密钥指纹；后续指纹变化会拒绝连接。
+- 检测仅执行 SSH 认证，不运行 shell 命令。
 
-## 构建验证
-当前版本正在进行 GitHub Actions 编译验证。 
+## 服务器填写
+例如：
+- 用户名：你的 Serv00 用户名
+- 服务器：s4.serv00.com（请按你的实际服务器填写）
+- SSH端口：22
+- 认证：Serv00密码或SSH私钥
+
+私钥登录时，将完整私钥内容粘贴到私钥框；如果私钥有口令，填写私钥口令。
+
+## 安全说明
+- 账号凭据不会上传到 GitHub 或任何第三方服务器。
+- 首次连接采用 TOFU（首次使用时固定主机密钥）：第一次连接的服务器密钥会被本机记录，之后密钥发生变化会阻止认证。首次连接请确认服务器地址确实属于 Serv00。
+- 频繁认证失败可能触发服务器端安全限制；应用提供批量间隔并限制短时间重复点击。
+
+## 构建 APK
+进入 GitHub Actions，运行 **Build Serv00账号检测 APK**，从 Artifacts 下载 **Serv00账号检测-debug-apk**。
