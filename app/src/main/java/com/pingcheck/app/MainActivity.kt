@@ -1,615 +1,465 @@
 package com.pingcheck.app
 
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
+import android.Manifest
+import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.LinkProperties
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.*
-import java.net.Inet6Address
-import java.net.InetAddress
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.Executors
-import java.util.regex.Pattern
-import org.json.JSONArray
-import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
-class MainActivity : android.app.Activity() {
-    private val executor = Executors.newCachedThreadPool()
-    private val main = Handler(Looper.getMainLooper())
+class MainActivity : Activity() {
+    private val executor = Executors.newFixedThreadPool(3)
+    private lateinit var store: SecureStore
+    private lateinit var accounts: MutableList<ServerAccount>
     private lateinit var list: LinearLayout
-    private val ips = linkedMapOf<String, View>()
-    private val notes = linkedMapOf<String, String>()
-    private val prefs by lazy { getSharedPreferences("ping_list", Context.MODE_PRIVATE) }
-    private val savedIps = "saved_ips"
-    private val savedData = "saved_ip_data"
+    private val checkingIds = mutableSetOf<String>()
+    private var checkingAll = false
+    private val blue = Color.rgb(37, 99, 235)
+    private val dark = Color.rgb(15, 23, 42)
+    private val muted = Color.rgb(100, 116, 139)
+    private val background = Color.rgb(246, 248, 252)
 
-    private fun dp(v: Int): Int = (v * resources.displayMetrics.density + 0.5f).toInt()
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun rounded(color: Int, radius: Int): GradientDrawable =
         GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
 
-    private fun actionView(textValue: String, textColor: Int, bgColor: Int, size: Int = 15) =
+    private fun button(text: String, color: Int = blue, textColor: Int = Color.WHITE): TextView =
         TextView(this).apply {
-            text = textValue
-            textSize = size.toFloat()
+            this.text = text
+            textSize = 13f
             setTextColor(textColor)
             gravity = Gravity.CENTER
+            typeface = Typeface.DEFAULT_BOLD
             includeFontPadding = false
-            isSingleLine = true
-            background = rounded(bgColor, 14)
+            background = rounded(color, 12)
+            isClickable = true
+            isFocusable = true
+        }
+
+    private fun label(text: String, size: Float = 13f, color: Int = dark, bold: Boolean = false): TextView =
+        TextView(this).apply {
+            this.text = text
+            textSize = size
+            setTextColor(color)
+            includeFontPadding = false
+            if (bold) typeface = Typeface.DEFAULT_BOLD
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(246, 248, 252)
-        window.navigationBarColor = Color.rgb(246, 248, 252)
+        store = SecureStore(this)
+        accounts = store.loadAccounts()
+        window.statusBarColor = background
+        window.navigationBarColor = background
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(246, 248, 252))
-            setPadding(dp(10), dp(6), dp(10), dp(6))
+            setPadding(dp(14), dp(10), dp(14), dp(8))
+            setBackgroundColor(background)
         }
 
-        val title = TextView(this).apply {
-            text = "Ping检测"
-            textSize = 26f
-            setTextColor(Color.rgb(15, 23, 42))
-            gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            includeFontPadding = false
-        }
-        root.addView(title, LinearLayout.LayoutParams(-1, dp(30)))
+        val title = label("Serv00账号检测", 25f, dark, true).apply { gravity = Gravity.CENTER }
+        root.addView(title, LinearLayout.LayoutParams(-1, dp(38)))
+        val subtitle = label("多账号管理 · SSH真实认证 · 75天提醒", 12f, muted).apply { gravity = Gravity.CENTER }
+        root.addView(subtitle, LinearLayout.LayoutParams(-1, dp(24)))
 
-        val sub = TextView(this).apply {
-            text = "IPv4 / IPv6  ·  ICMP网络连通性检测"
-            textSize = 11.5f
-            setTextColor(Color.rgb(100, 116, 139))
-            gravity = Gravity.CENTER
-            includeFontPadding = false
-        }
-        root.addView(sub, LinearLayout.LayoutParams(-1, dp(18)))
-
-        val inputCard = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), dp(4), dp(6), dp(4))
-            background = rounded(Color.WHITE, 18)
-            elevation = dp(2).toFloat()
-        }
-        val input = EditText(this).apply {
-            hint = "输入 IPv4 或 IPv6 地址"
-            textSize = 14f
-            setTextColor(Color.rgb(15, 23, 42))
-            setHintTextColor(Color.rgb(148, 163, 184))
-            setSingleLine(true)
-            maxLines = 1
-            includeFontPadding = false
-            gravity = Gravity.CENTER_VERTICAL
-            background = null
-            setPadding(dp(10), 0, dp(8), 0)
-            minWidth = 0
-            minHeight = 0
-        }
-        inputCard.addView(input, LinearLayout.LayoutParams(0, dp(38), 1f))
-
-        val add = actionView("添加", Color.WHITE, Color.rgb(37, 99, 235), 14)
-        val addParams = LinearLayout.LayoutParams(dp(58), dp(38))
-        addParams.leftMargin = dp(4)
-        inputCard.addView(add, addParams)
-        root.addView(inputCard, LinearLayout.LayoutParams(-1, dp(46)))
-
-        val actions = LinearLayout(this).apply {
+        val add = button("＋ 添加账号", blue)
+        val batch = button("检测全部", Color.rgb(79, 70, 229))
+        val topRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val all = actionView("全部检测", Color.WHITE, Color.rgb(79, 70, 229), 14)
-        all.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        actions.addView(all, LinearLayout.LayoutParams(0, dp(38), 1f))
-        val diagnostic = actionView("网络诊断", Color.rgb(5, 150, 105), Color.rgb(236, 253, 245), 14)
-        val diagnosticParams = LinearLayout.LayoutParams(0, dp(38), 1f)
-        diagnosticParams.leftMargin = dp(8)
-        actions.addView(diagnostic, diagnosticParams)
+        topRow.addView(add, LinearLayout.LayoutParams(0, dp(44), 1f))
+        val batchParams = LinearLayout.LayoutParams(0, dp(44), 1f).apply { leftMargin = dp(8) }
+        topRow.addView(batch, batchParams)
+        val topParams = LinearLayout.LayoutParams(-1, dp(50)).apply { topMargin = dp(5) }
+        root.addView(topRow, topParams)
 
-        val clear = actionView("清空", Color.rgb(71, 85, 105), Color.WHITE, 13)
-        val clearParams = LinearLayout.LayoutParams(dp(50), dp(38))
-        clearParams.leftMargin = dp(8)
-        actions.addView(clear, clearParams)
-        val actionParams = LinearLayout.LayoutParams(-1, dp(46))
-        actionParams.topMargin = dp(4)
-        root.addView(actions, actionParams)
+        val securityNote = label(
+            "只验证SSH账号认证，不执行命令。密码和私钥使用Android Keystore加密保存在本机。",
+            11f, muted
+        )
+        securityNote.setPadding(dp(3), dp(3), dp(3), dp(7))
+        root.addView(securityNote)
 
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             setClipToPadding(false)
-            setPadding(0, dp(2), 0, 0)
+            addView(list)
         }
-        scroll.addView(list)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
 
-        add.setOnClickListener {
-            val ip = input.text.toString().trim()
-            if (validate(ip)) {
-                showAddIpDialog(ip) {
-                    input.text.clear()
-                }
-            } else {
-                Toast.makeText(this, "请输入有效的 IPv4 或 IPv6 地址", Toast.LENGTH_SHORT).show()
-            }
-        }
-        all.setOnClickListener { ips.keys.toList().forEach { ping(it) } }
-        diagnostic.setOnClickListener { showNetworkDiagnostics() }
-        clear.setOnClickListener { confirmClearAll() }
+        add.setOnClickListener { showAccountDialog(null) }
+        batch.setOnClickListener { checkAllAccounts() }
 
-        loadSavedIps()
+        refreshList()
+        scheduleReminder()
+        requestNotificationPermission()
     }
 
-    private fun loadSavedIps() {
-        val data = prefs.getString(savedData, null)
-        if (!data.isNullOrBlank()) {
-            try {
-                val array = JSONArray(data)
-                for (i in 0 until array.length()) {
-                    val item = array.getJSONObject(i)
-                    val ip = item.optString("ip").trim()
-                    val note = item.optString("note")
-                    if (ip.isNotEmpty() && validate(ip)) addIp(ip, note)
-                }
-                if (ips.isNotEmpty()) return
-            } catch (_: Exception) {
-                // 新格式损坏时继续尝试读取旧格式
-            }
-        }
-
-        val saved = prefs.getStringSet(savedIps, emptySet())?.toList() ?: emptyList()
-        if (saved.isEmpty()) {
-            addIp("8.8.8.8", "")
-            addIp("1.1.1.1", "")
-        } else {
-            saved.forEach { addIp(it, "") }
-        }
-        saveIps()
+    private fun scheduleReminder() {
+        val request = PeriodicWorkRequestBuilder<ReminderWorker>(1, TimeUnit.DAYS).build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "serv00_account_reminders",
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
     }
 
-    private fun saveIps() {
-        val array = JSONArray()
-        ips.keys.forEach { ip ->
-            array.put(JSONObject().apply {
-                put("ip", ip)
-                put("note", notes[ip] ?: "")
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7501)
+        }
+    }
+
+    private fun save() = store.saveAccounts(accounts)
+
+    private fun refreshList() {
+        list.removeAllViews()
+        if (accounts.isEmpty()) {
+            val empty = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(20), dp(60), dp(20), dp(30))
+            }
+            empty.addView(label("还没有添加Serv00账号", 18f, dark, true).apply { gravity = Gravity.CENTER })
+            empty.addView(label("点击上方“添加账号”，填写用户名、服务器和认证信息。", 13f, muted).apply {
+                gravity = Gravity.CENTER
+                setPadding(0, dp(10), 0, 0)
             })
-        }
-        prefs.edit()
-            .putString(savedData, array.toString())
-            .putStringSet(savedIps, ips.keys.toSet())
-            .apply()
-    }
-
-    private fun showAddIpDialog(ip: String, onAdded: () -> Unit) {
-        if (ips.containsKey(ip)) {
-            Toast.makeText(this, "这个 IP 已经添加", Toast.LENGTH_SHORT).show()
+            list.addView(empty)
             return
         }
 
-        val noteInput = EditText(this).apply {
-            hint = "例如：Google DNS"
-            textSize = 15f
-            setSingleLine(true)
-            maxLines = 1
-            setPadding(dp(4), 0, dp(4), 0)
+        accounts.forEach { account ->
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(13), dp(11), dp(13), dp(11))
+                background = rounded(Color.WHITE, 16)
+                elevation = dp(1).toFloat()
+            }
+            val heading = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            heading.addView(label(account.name, 16f, dark, true), LinearLayout.LayoutParams(0, dp(27), 1f))
+            val statusColor = when {
+                account.status == "SSH认证成功" -> Color.rgb(22, 163, 74)
+                account.status == "检测中…" -> blue
+                account.lastCheck > 0L -> Color.rgb(220, 38, 38)
+                else -> muted
+            }
+            val status = label(account.status, 12f, statusColor, true)
+            heading.addView(status)
+            card.addView(heading)
+
+            val address = label(
+                account.username + "@" + account.host + ":" + account.port +
+                    if (account.authType == "key") "  ·  SSH密钥" else "  ·  密码",
+                12f, muted
+            )
+            address.setPadding(0, dp(3), 0, dp(5))
+            card.addView(address)
+
+            val lastText = if (account.lastSuccess > 0L) {
+                val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(account.lastSuccess))
+                val days = ((System.currentTimeMillis() - account.lastSuccess) / 86400000L).coerceAtLeast(0)
+                "最近成功登录：$date（$days 天前）"
+            } else {
+                "最近成功登录：暂无记录"
+            }
+            card.addView(label(lastText, 11.5f, muted))
+
+            if (account.lastSuccess > 0L &&
+                (System.currentTimeMillis() - account.lastSuccess) / 86400000L >= 75L) {
+                val warning = label("提醒：距离上次成功登录已达75天，请尽快检测。", 11.5f, Color.rgb(194, 65, 12), true)
+                warning.setPadding(0, dp(5), 0, 0)
+                card.addView(warning)
+            }
+
+            if (account.detail.isNotBlank()) {
+                val detail = label(account.detail, 11.5f, muted)
+                detail.setPadding(0, dp(4), 0, 0)
+                card.addView(detail)
+            }
+
+            val actions = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val check = button(if (checkingIds.contains(account.id)) "检测中" else "检测", Color.rgb(239, 246, 255), blue)
+            val history = button("记录", Color.rgb(241, 245, 249), Color.rgb(51, 65, 85))
+            val edit = button("编辑", Color.rgb(241, 245, 249), Color.rgb(51, 65, 85))
+            val delete = button("删除", Color.rgb(254, 242, 242), Color.rgb(220, 38, 38))
+            listOf(check, history, edit, delete).forEachIndexed { index, view ->
+                val params = LinearLayout.LayoutParams(0, dp(34), 1f)
+                if (index > 0) params.leftMargin = dp(6)
+                actions.addView(view, params)
+            }
+            check.isEnabled = !checkingIds.contains(account.id) && !checkingAll
+            check.alpha = if (check.isEnabled) 1f else 0.55f
+            check.setOnClickListener { checkAccount(account) }
+            history.setOnClickListener { showHistory(account) }
+            edit.setOnClickListener { showAccountDialog(account) }
+            delete.setOnClickListener { confirmDelete(account) }
+            val actionParams = LinearLayout.LayoutParams(-1, dp(40)).apply { topMargin = dp(8) }
+            card.addView(actions, actionParams)
+
+            val cardParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(9) }
+            list.addView(card, cardParams)
         }
+    }
+
+    private fun showAccountDialog(existing: ServerAccount?) {
+        val name = EditText(this).apply {
+            hint = "账号备注，例如：我的Serv00"
+            setSingleLine(true)
+            setText(existing?.name ?: "")
+        }
+        val username = EditText(this).apply {
+            hint = "Serv00用户名"
+            setSingleLine(true)
+            setText(existing?.username ?: "")
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        }
+        val host = EditText(this).apply {
+            hint = "服务器，例如 s4.serv00.com"
+            setSingleLine(true)
+            setText(existing?.host ?: "s4.serv00.com")
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
+        val port = EditText(this).apply {
+            hint = "SSH端口"
+            setSingleLine(true)
+            setText((existing?.port ?: 22).toString())
+            inputType = InputType.TYPE_CLASS_NUMBER
+        }
+        val auth = Spinner(this)
+        auth.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listOf("密码登录", "SSH私钥登录"))
+        auth.setSelection(if (existing?.authType == "key") 1 else 0)
+
+        val secret = EditText(this).apply {
+            hint = "输入Serv00登录密码"
+            setText(existing?.secret ?: "")
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            minHeight = dp(48)
+        }
+        val passphrase = EditText(this).apply {
+            hint = "私钥口令（没有可留空）"
+            setText(existing?.passphrase ?: "")
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setSingleLine(true)
+        }
+        fun updateSecretMode() {
+            if (auth.selectedItemPosition == 1) {
+                secret.hint = "粘贴完整SSH私钥内容（例如以 BEGIN OPENSSH PRIVATE KEY 开头）"
+                secret.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                secret.minHeight = dp(145)
+                secret.gravity = Gravity.TOP
+            } else {
+                secret.hint = "输入Serv00登录密码"
+                secret.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                secret.minHeight = dp(48)
+                secret.gravity = Gravity.CENTER_VERTICAL
+            }
+        }
+        auth.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = updateSecretMode()
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        updateSecretMode()
 
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(4), dp(24), 0)
+            setPadding(dp(20), dp(4), dp(20), dp(4))
         }
-        box.addView(noteInput, LinearLayout.LayoutParams(-1, dp(46)))
+        fun addField(caption: String, view: View, height: Int = 48) {
+            box.addView(label(caption, 12f, muted, true), LinearLayout.LayoutParams(-1, dp(22)))
+            box.addView(view, LinearLayout.LayoutParams(-1, dp(height)))
+            val gap = View(this)
+            box.addView(gap, LinearLayout.LayoutParams(-1, dp(5)))
+        }
+        addField("账号备注", name)
+        addField("用户名", username)
+        addField("服务器地址", host)
+        addField("SSH端口", port)
+        addField("认证方式", auth)
+        addField("密码或私钥内容", secret, if (existing?.authType == "key") 145 else 64)
+        addField("私钥口令（可选）", passphrase)
 
-        android.app.AlertDialog.Builder(this)
-            .setTitle("添加 IP")
-            .setMessage(ip)
-            .setView(box)
+        val scroll = ScrollView(this).apply {
+            addView(box)
+            isFillViewport = true
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(if (existing == null) "添加Serv00账号" else "编辑账号")
+            .setView(scroll)
             .setNegativeButton("取消", null)
-            .setPositiveButton("添加") { _, _ ->
-                val note = noteInput.text.toString().trim()
-                addIp(ip, note)
-                saveIps()
-                onAdded()
+            .setPositiveButton("保存", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val userValue = username.text.toString().trim()
+                val hostValue = host.text.toString().trim()
+                val portValue = port.text.toString().trim().toIntOrNull()
+                val secretValue = secret.text.toString()
+                if (userValue.isBlank() || hostValue.isBlank() || hostValue.contains(" ") ||
+                    portValue == null || portValue !in 1..65535 || secretValue.isBlank()) {
+                    Toast.makeText(this, "请完整填写用户名、服务器、有效端口和认证信息", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                val account = existing ?: ServerAccount(
+                    id = UUID.randomUUID().toString(),
+                    name = "",
+                    username = "",
+                    host = "",
+                    port = 22,
+                    authType = "password",
+                    secret = ""
+                )
+                account.name = name.text.toString().trim().ifBlank { userValue }
+                account.username = userValue
+                account.host = hostValue
+                account.port = portValue
+                account.authType = if (auth.selectedItemPosition == 1) "key" else "password"
+                account.secret = secretValue
+                account.passphrase = passphrase.text.toString()
+                if (existing == null) accounts.add(account)
+                save()
+                refreshList()
+                dialog.dismiss()
             }
+        }
+        dialog.show()
+    }
+
+    private fun checkAccount(account: ServerAccount) {
+        if (checkingAll || checkingIds.contains(account.id)) return
+        if (account.lastCheck > 0L && System.currentTimeMillis() - account.lastCheck < 20000L) {
+            Toast.makeText(this, "刚刚检测过，请稍后再试，避免频繁认证", Toast.LENGTH_SHORT).show()
+            return
+        }
+        checkingIds.add(account.id)
+        account.status = "检测中…"
+        account.detail = "正在建立SSH连接并验证账号认证"
+        refreshList()
+        executor.execute {
+            val result = SshChecker(this).check(account)
+            mainUpdate {
+                checkingIds.remove(account.id)
+                applyResult(account, result)
+            }
+        }
+    }
+
+    private fun checkAllAccounts() {
+        if (checkingAll || checkingIds.isNotEmpty()) return
+        if (accounts.isEmpty()) {
+            Toast.makeText(this, "请先添加账号", Toast.LENGTH_SHORT).show()
+            return
+        }
+        checkingAll = true
+        refreshList()
+        val snapshot = accounts.toList()
+        executor.execute {
+            snapshot.forEachIndexed { index, account ->
+                if (accounts.any { it.id == account.id }) {
+                    mainUpdate {
+                        checkingIds.add(account.id)
+                        account.status = "检测中…"
+                        account.detail = "批量检测中（" + (index + 1) + "/" + snapshot.size + "）"
+                        refreshList()
+                    }
+                    val result = SshChecker(this).check(account)
+                    mainUpdate {
+                        checkingIds.remove(account.id)
+                        applyResult(account, result)
+                    }
+                    if (index < snapshot.lastIndex) Thread.sleep(2500)
+                }
+            }
+            mainUpdate {
+                checkingAll = false
+                refreshList()
+            }
+        }
+    }
+
+    private fun applyResult(account: ServerAccount, result: SshCheckResult) {
+        val now = System.currentTimeMillis()
+        account.lastCheck = now
+        account.status = if (result.success) "SSH认证成功" else "登录失败"
+        account.detail = result.detail +
+            if (result.fingerprint.isNotBlank()) " · " + result.fingerprint else ""
+        if (result.success) account.lastSuccess = now
+        account.history.add(0, CheckRecord(now, result.success, account.detail))
+        while (account.history.size > 30) account.history.removeAt(account.history.lastIndex)
+        save()
+        refreshList()
+    }
+
+    private fun mainUpdate(action: () -> Unit) {
+        runOnUiThread { action() }
+    }
+
+    private fun showHistory(account: ServerAccount) {
+        val text = if (account.history.isEmpty()) {
+            "暂无检测记录"
+        } else {
+            account.history.joinToString("\n\n") { record ->
+                val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(record.time))
+                (if (record.success) "✓ 成功  " else "✕ 失败  ") + date + "\n" + record.detail
+            }
+        }
+        val view = ScrollView(this).apply {
+            val body = label(text, 13f, dark)
+            body.setPadding(dp(18), dp(12), dp(18), dp(12))
+            addView(body)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(account.name + " · 检测历史")
+            .setView(view)
+            .setPositiveButton("关闭", null)
             .show()
     }
 
-    private fun validate(s: String): Boolean {
-        if (s.isBlank() || s.contains(" ")) return false
-        return try {
-            val addr = InetAddress.getByName(s)
-            addr.hostAddress != null && (addr is java.net.Inet4Address || addr is Inet6Address)
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    private fun addIp(ip: String, note: String = "") {
-        if (ips.containsKey(ip)) return
-        notes[ip] = note
-
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(7), dp(4), dp(5), dp(4))
-            background = rounded(Color.WHITE, 14)
-            elevation = dp(1).toFloat()
-        }
-
-        val ipText = TextView(this).apply {
-            text = ip
-            textSize = 14f
-            setTextColor(Color.rgb(15, 23, 42))
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER_VERTICAL
-            includeFontPadding = false
-            isSingleLine = true
-            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-        }
-        card.addView(ipText, LinearLayout.LayoutParams(0, dp(38), 1.05f))
-
-        val noteText = TextView(this).apply {
-            text = note
-            textSize = 11.5f
-            setTextColor(Color.rgb(37, 99, 235))
-            gravity = Gravity.CENTER_VERTICAL or Gravity.LEFT
-            includeFontPadding = false
-            isSingleLine = true
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        val noteParams = LinearLayout.LayoutParams(0, dp(38), 1.05f)
-        noteParams.leftMargin = dp(3)
-        card.addView(noteText, noteParams)
-
-        val result = TextView(this).apply {
-            text = "—"
-            textSize = 12f
-            setTextColor(Color.rgb(100, 116, 139))
-            gravity = Gravity.CENTER
-            includeFontPadding = false
-            isSingleLine = true
-        }
-        val resultParams = LinearLayout.LayoutParams(dp(55), dp(38))
-        resultParams.leftMargin = dp(12)
-        card.addView(result, resultParams)
-
-        val check = actionView("检测", Color.rgb(37, 99, 235), Color.rgb(239, 246, 255), 12)
-        check.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        check.setOnClickListener { ping(ip) }
-        val checkParams = LinearLayout.LayoutParams(dp(48), dp(32))
-        checkParams.leftMargin = dp(5)
-        card.addView(check, checkParams)
-
-        val del = actionView("删除", Color.rgb(220, 38, 38), Color.rgb(254, 242, 242), 12)
-        del.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        del.setOnClickListener { confirmDeleteIp(ip, card) }
-        val delParams = LinearLayout.LayoutParams(dp(48), dp(32))
-        delParams.leftMargin = dp(5)
-        card.addView(del, delParams)
-
-        val p = LinearLayout.LayoutParams(-1, dp(46))
-        p.topMargin = dp(4)
-        list.addView(card, p)
-        ips[ip] = card
-    }
-
-    private fun confirmDeleteIp(ip: String, card: View) {
-        android.app.AlertDialog.Builder(this)
-            .setTitle("删除 IP")
-            .setMessage("确定要删除 " + ip + " 吗？")
+    private fun confirmDelete(account: ServerAccount) {
+        AlertDialog.Builder(this)
+            .setTitle("删除账号")
+            .setMessage("确定删除“" + account.name + "”及其本机检测记录吗？")
             .setNegativeButton("取消", null)
             .setPositiveButton("删除") { _, _ ->
-                ips.remove(ip)
-                notes.remove(ip)
-                list.removeView(card)
-                saveIps()
+                accounts.removeAll { it.id == account.id }
+                save()
+                refreshList()
             }
             .show()
     }
 
-    private fun confirmClearAll() {
-        if (ips.isEmpty()) {
-            Toast.makeText(this, "当前没有可清空的 IP", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        android.app.AlertDialog.Builder(this)
-            .setTitle("清空全部 IP")
-            .setMessage("确定要删除当前保存的全部 " + ips.size + " 个 IP 吗？此操作不可恢复。")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("全部清空") { _, _ ->
-                ips.clear()
-                notes.clear()
-                list.removeAllViews()
-                saveIps()
-            }
-            .show()
-    }
-
-
-    private fun ping(ip: String) {
-        val card = ips[ip] as? LinearLayout ?: return
-        val result = card.getChildAt(2) as TextView
-        val check = card.getChildAt(3) as TextView
-
-        check.text = "检测中"
-        check.setTextColor(Color.rgb(37, 99, 235))
-        check.background = rounded(Color.rgb(239, 246, 255), 14)
-        result.text = "—"
-        result.setTextColor(Color.rgb(100, 116, 139))
-
-        executor.execute {
-            val r = realPing(ip)
-            main.post {
-                if (!ips.containsKey(ip)) return@post
-                check.text = "检测"
-                val success = r.contains(" ms")
-                result.text = if (success) r else "-1"
-                result.setTextColor(
-                    if (success) Color.rgb(22, 163, 74)
-                    else Color.rgb(220, 38, 38)
-                )
-            }
-        }
-    }
-
-    private fun realPing(host: String): String {
-        return try {
-            val addr = InetAddress.getByName(host)
-            val result = runPingProcess(host, addr is Inet6Address)
-            when (result.status) {
-                PingStatus.SUCCESS -> result.latency?.let { "${formatLatency(it)} ms" } ?: "-1"
-                PingStatus.TIMEOUT -> "-1"
-                PingStatus.UNAVAILABLE -> "-1"
-                else -> "-1"
-            }
-        } catch (_: Exception) {
-            "—"
-        }
-    }
-
-    private enum class PingStatus { SUCCESS, TIMEOUT, UNAVAILABLE, FAILED }
-    private data class PingResult(val status: PingStatus, val latency: Double? = null, val detail: String = "")
-
-    private fun runPingProcess(host: String, v6: Boolean): PingResult {
-        val family = if (v6) "-6" else "-4"
-        val commands = listOf(
-            arrayOf("/system/bin/toybox", "ping", family, "-c", "4", "-W", "3", host),
-            arrayOf("/system/bin/toybox", "ping", family, "-c", "4", "-w", "12", host),
-            if (v6) arrayOf("/system/bin/ping6", "-c", "4", "-W", "3", host)
-            else arrayOf("/system/bin/ping", "-c", "4", "-W", "3", host),
-            if (v6) arrayOf("ping6", "-c", "4", "-W", "3", host)
-            else arrayOf("ping", "-c", "4", "-W", "3", host)
-        )
-
-        var executableFound = false
-        var timeoutSeen = false
-        var timeoutDetail = ""
-
-        for (cmd in commands) {
-            try {
-                val process = ProcessBuilder(*cmd).redirectErrorStream(true).start()
-                executableFound = true
-                val output = process.inputStream.bufferedReader().use { it.readText() }
-                process.waitFor()
-                process.destroy()
-
-                val lower = output.lowercase()
-                val latency = parsePingTime(output)
-
-                if (latency != null &&
-                    (lower.contains("bytes from") ||
-                     lower.contains("icmp_seq") ||
-                     lower.contains("icmp_req") ||
-                     lower.contains("reply from"))) {
-                    return PingResult(PingStatus.SUCCESS, latency, cleanDetail(output))
-                }
-
-                if (lower.contains("permission denied") ||
-                    lower.contains("operation not permitted") ||
-                    lower.contains("cannot create socket") ||
-                    (lower.contains("socket") && lower.contains("denied"))) {
-                    return PingResult(PingStatus.UNAVAILABLE, detail = cleanDetail(output))
-                }
-
-                if (lower.contains("100% packet loss") ||
-                    lower.contains("100.0% packet loss") ||
-                    lower.contains("0 received") ||
-                    lower.contains("request timeout") ||
-                    lower.contains("timed out") ||
-                    lower.contains("network is unreachable") ||
-                    lower.contains("no route to host")) {
-                    timeoutSeen = true
-                    timeoutDetail = cleanDetail(output)
-                }
-            } catch (_: java.io.IOException) {
-            } catch (_: Exception) {
-            }
-        }
-
-        return when {
-            timeoutSeen -> PingResult(PingStatus.TIMEOUT, detail = timeoutDetail)
-            executableFound -> PingResult(PingStatus.FAILED)
-            else -> PingResult(PingStatus.UNAVAILABLE)
-        }
-    }
-
-    private fun showNetworkDiagnostics() {
-        val dialog = android.app.Dialog(this)
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(12))
-            background = rounded(Color.WHITE, 22)
-        }
-
-        val title = TextView(this).apply {
-            text = "网络诊断"
-            textSize = 21f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setTextColor(Color.rgb(15, 23, 42))
-        }
-        box.addView(title, LinearLayout.LayoutParams(-1, dp(34)))
-
-        val note = TextView(this).apply {
-            text = "真实ICMP与DNS分开显示，不把TCP连接当成Ping。"
-            textSize = 12f
-            setTextColor(Color.rgb(100, 116, 139))
-        }
-        box.addView(note, LinearLayout.LayoutParams(-1, dp(42)))
-
-        val result = TextView(this).apply {
-            text = "正在诊断，请稍候…"
-            textSize = 13f
-            setTextColor(Color.rgb(30, 41, 59))
-            isSingleLine = false
-            setHorizontallyScrolling(false)
-        }
-        val scroll = ScrollView(this).apply { addView(result) }
-        box.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-
-        val close = actionView("关闭", Color.WHITE, Color.rgb(37, 99, 235), 14)
-        val closeParams = LinearLayout.LayoutParams(-1, dp(44))
-        closeParams.topMargin = dp(10)
-        box.addView(close, closeParams)
-        close.setOnClickListener { dialog.dismiss() }
-
-        dialog.setContentView(box)
-        dialog.show()
-        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        dialog.window?.setLayout(dp(340), dp(560))
-
-        executor.execute {
-            val report = buildNetworkReport()
-            main.post { if (dialog.isShowing) result.text = report }
-        }
-    }
-
-    private fun buildNetworkReport(): String {
-        val sb = StringBuilder()
-
-        val gateway = findDefaultGateway()
-        sb.append("【本地网关 ICMP】\n")
-        if (gateway != null && gateway != "0.0.0.0" && gateway != "::") {
-            sb.append(formatDiagnosticPing(gateway))
-        } else {
-            sb.append("⚠️ 未找到默认网关")
-        }
-        sb.append("\n\n")
-
-        sb.append("【IPv4 ICMP】\n")
-        sb.append(formatDiagnosticPing("8.8.8.8")).append("\n\n")
-        sb.append(formatDiagnosticPing("1.1.1.1")).append("\n\n")
-
-        sb.append("【IPv6 ICMP】\n")
-        sb.append(formatDiagnosticPing("2001:4860:4860::8888")).append("\n\n")
-        sb.append(formatDiagnosticPing("2606:4700:4700::1111")).append("\n\n")
-
-        sb.append("【DNS解析】\n")
-        sb.append(dnsReport()).append("\n\n")
-
-        sb.append("【当前网络】\n")
-        sb.append(linkReport())
-        return sb.toString()
-    }
-
-    private fun formatDiagnosticPing(host: String): String {
-        val v6 = host.contains(":")
-        val r = runPingProcess(host, v6)
-        return when (r.status) {
-            PingStatus.SUCCESS -> {
-                val stats = extractPingStats(r.detail)
-                "🟢 " + host + "  →  " +
-                    (r.latency?.let { formatLatency(it) + " ms" } ?: "收到ICMP回包") +
-                    if (stats.isNotEmpty()) "\n" + stats else ""
-            }
-            PingStatus.TIMEOUT -> "🔴 " + host + "  →  超时\n" + firstLines(r.detail, if (v6) 6 else 4)
-            PingStatus.UNAVAILABLE -> "⚠️ " + host + "  →  ICMP不可用\n" + firstLines(r.detail, 6)
-            PingStatus.FAILED -> "🔴 " + host + "  →  Ping失败\n" + firstLines(r.detail, 6)
-        }
-    }
-
-    private fun extractPingStats(text: String): String {
-        val lines = text.lines().filter { it.isNotBlank() }
-        return lines.filter {
-            val s = it.lowercase()
-            s.contains("packet loss") ||
-            s.contains("packets transmitted") ||
-            s.contains("round-trip") ||
-            s.contains("rtt min/avg/max")
-        }.joinToString("\n")
-    }
-
-    private fun firstLines(text: String, maxLines: Int): String =
-        text.lines().filter { it.isNotBlank() }.take(maxLines).joinToString("\n")
-
-    private fun findDefaultGateway(): String? {
-        return try {
-            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val network = cm.activeNetwork ?: return null
-            val lp: LinkProperties = cm.getLinkProperties(network) ?: return null
-            lp.routes.firstOrNull { it.isDefaultRoute }?.gateway?.hostAddress
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun dnsReport(): String {
-        return try {
-            val start = System.currentTimeMillis()
-            val addresses = InetAddress.getAllByName("dns.google")
-            val ms = System.currentTimeMillis() - start
-            "🟢 dns.google 解析成功，" + addresses.size + " 个地址，耗时约 " + ms + " ms\n" +
-                addresses.take(4).joinToString("\n") { "  " + it.hostAddress }
-        } catch (e: Exception) {
-            "🔴 dns.google 解析失败：" + (e.message ?: "未知错误")
-        }
-    }
-
-    private fun linkReport(): String {
-        return try {
-            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val network = cm.activeNetwork ?: return "🔴 当前没有活动网络"
-            val lp: LinkProperties = cm.getLinkProperties(network)
-                ?: return "⚠️ 无法读取当前网络参数"
-
-            val lines = mutableListOf<String>()
-            lp.linkAddresses.forEach { lines.add("本机地址：" + it.address.hostAddress) }
-            lp.dnsServers.forEach { lines.add("DNS：" + it.hostAddress) }
-            lp.routes.filter { it.isDefaultRoute }.forEach {
-                lines.add("默认网关：" + (it.gateway?.hostAddress ?: "系统路由"))
-            }
-            lines.joinToString("\n").ifEmpty {
-                "⚠️ 当前网络没有可显示的地址/DNS/默认路由信息"
-            }
-        } catch (e: Exception) {
-            "⚠️ 网络信息读取失败：" + (e.message ?: "未知错误")
-        }
-    }
-
-    private fun cleanDetail(output: String): String {
-        val text = output.trim().replace("\r", "")
-        return if (text.length > 800) text.take(800) + "\n[输出过长，仅显示前800字符]" else text
-    }
-
-    private fun formatLatency(value: Double): String =
-        if (value % 1.0 == 0.0) "%.0f".format(value) else "%.1f".format(value)
-
-    private fun parsePingTime(output: String): Double? {
-        val matcher = Pattern.compile("time[=<]([0-9]+(?:\\.[0-9]+)?)").matcher(output)
-        return if (matcher.find()) {
-            matcher.group(1)?.toDoubleOrNull()
-        } else null
+    override fun onDestroy() {
+        super.onDestroy()
+        executor.shutdownNow()
     }
 }
