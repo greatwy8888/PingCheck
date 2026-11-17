@@ -99,5 +99,7 @@ private class PinningHostKeyRepository(context: Context) : HostKeyRepository {
 
     override fun getHostKey(): Array<HostKey> = emptyArray()
 
+    override fun getKnownHostsRepositoryID(): String = "serv00-pinned-hostkeys"
+
     override fun getHostKey(host: String?, type: String?): Array<HostKey> = emptyArray()
 }
