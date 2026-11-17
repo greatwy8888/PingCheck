@@ -151,7 +151,7 @@ class SshChecker(context: Context) {
         } catch (e: Exception) {
             val message = (e.message ?: e.javaClass.simpleName).trim()
             val lower = (e.toString() + " " + message).lowercase()
-            val authMatch = Regex("Auth fail for methods ['\\"]([^'\\"]+)['\\"]", RegexOption.IGNORE_CASE)
+            val authMatch = Regex("""Auth fail for methods ['"]([^'"]+)['"]""", RegexOption.IGNORE_CASE)
                 .find(message)
             if (authMatch != null) serverAuthMethods = authMatch.groupValues[1]
             val detail = when {
@@ -179,8 +179,8 @@ class SshChecker(context: Context) {
             }
             val causeChain = generateSequence(e as Throwable?) { it.cause }
                 .take(5)
-                .joinToString("\\n") { it.javaClass.name + (it.message?.let { msg -> ": " + msg } ?: "") }
-            val stack = e.stackTrace.take(8).joinToString("\\n") { "  at " + it }
+                .joinToString("\n") { it.javaClass.name + (it.message?.let { msg -> ": " + msg } ?: "") }
+            val stack = e.stackTrace.take(8).joinToString("\n") { "  at " + it }
             val diagnostics = buildString {
                 appendLine("检测目标：${account.host}:${account.port}")
                 appendLine("用户名：${account.username}")
