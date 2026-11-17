@@ -151,9 +151,12 @@ class SshChecker(context: Context) {
         } catch (e: Exception) {
             val message = (e.message ?: e.javaClass.simpleName).trim()
             val lower = (e.toString() + " " + message).lowercase()
-            val authMatch = Regex("""Auth fail for methods ['"]([^'"]+)['"]""", RegexOption.IGNORE_CASE)
-                .find(message)
-            if (authMatch != null) serverAuthMethods = authMatch.groupValues[1]
+            val authPrefix = "Auth fail for methods '"
+            val authStart = message.indexOf(authPrefix)
+            if (authStart >= 0) {
+                val methods = message.substring(authStart + authPrefix.length).substringBefore("'")
+                if (methods.isNotBlank()) serverAuthMethods = methods
+            }
             val detail = when {
                 lower.contains("auth fail") || lower.contains("authentication failed") ->
                     "SSH认证失败：服务器拒绝了本次认证。客户端现已启用keyboard-interactive密码交互；请核对密码是否正确，以及账号是否被暂停或限制登录"
