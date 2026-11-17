@@ -34,7 +34,7 @@ class MainActivity : Activity() {
     private val blue = Color.rgb(37, 99, 235)
     private val dark = Color.rgb(15, 23, 42)
     private val muted = Color.rgb(100, 116, 139)
-    private val background = Color.rgb(246, 248, 252)
+    private val pageBackground = Color.rgb(246, 248, 252)
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
@@ -67,14 +67,14 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         store = SecureStore(this)
         accounts = store.loadAccounts()
-        window.statusBarColor = background
-        window.navigationBarColor = background
+        window.statusBarColor = pageBackground
+        window.navigationBarColor = pageBackground
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(10), dp(14), dp(8))
-            setBackgroundColor(background)
+            setBackgroundColor(pageBackground)
         }
 
         val title = label("Serv00账号检测", 25f, dark, true).apply { gravity = Gravity.CENTER }
