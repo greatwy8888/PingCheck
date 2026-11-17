@@ -15,7 +15,8 @@ import javax.crypto.spec.GCMParameterSpec
 data class CheckRecord(
     val time: Long,
     val success: Boolean,
-    val detail: String
+    val detail: String,
+    val diagnostics: String = ""
 )
 
 data class ServerAccount(
@@ -31,6 +32,7 @@ data class ServerAccount(
     var lastSuccess: Long = 0L,
     var status: String = "尚未检测",
     var detail: String = "",
+    var diagnostics: String = "",
     var lastReminderDate: String = "",
     val history: MutableList<CheckRecord> = mutableListOf()
 )
@@ -91,6 +93,7 @@ class SecureStore(context: Context) {
                     put("time", record.time)
                     put("success", record.success)
                     put("detail", record.detail)
+                    put("diagnostics", record.diagnostics)
                 })
             }
             array.put(JSONObject().apply {
@@ -106,6 +109,7 @@ class SecureStore(context: Context) {
                 put("lastSuccess", account.lastSuccess)
                 put("status", account.status)
                 put("detail", account.detail)
+                put("diagnostics", account.diagnostics)
                 put("lastReminderDate", account.lastReminderDate)
                 put("history", history)
             })
@@ -131,6 +135,7 @@ class SecureStore(context: Context) {
                 lastSuccess = item.optLong("lastSuccess"),
                 status = item.optString("status", "尚未检测"),
                 detail = item.optString("detail"),
+                diagnostics = item.optString("diagnostics"),
                 lastReminderDate = item.optString("lastReminderDate")
             )
             val history = item.optJSONArray("history") ?: JSONArray()
@@ -140,7 +145,8 @@ class SecureStore(context: Context) {
                     CheckRecord(
                         record.optLong("time"),
                         record.optBoolean("success"),
-                        record.optString("detail")
+                        record.optString("detail"),
+                        record.optString("diagnostics")
                     )
                 )
             }
