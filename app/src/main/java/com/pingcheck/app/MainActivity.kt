@@ -3,6 +3,8 @@ package com.pingcheck.app
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -79,7 +81,7 @@ class MainActivity : Activity() {
 
         val title = label("Serv00账号检测", 25f, dark, true).apply { gravity = Gravity.CENTER }
         root.addView(title, LinearLayout.LayoutParams(-1, dp(38)))
-        val subtitle = label("多账号管理 · SSH真实认证 · 75天提醒", 12f, muted).apply { gravity = Gravity.CENTER }
+        val subtitle = label("多账号管理 · SSH认证检测 · 详细故障定位", 12f, muted).apply { gravity = Gravity.CENTER }
         root.addView(subtitle, LinearLayout.LayoutParams(-1, dp(24)))
 
         val add = button("＋ 添加账号", blue)
@@ -95,7 +97,7 @@ class MainActivity : Activity() {
         root.addView(topRow, topParams)
 
         val securityNote = label(
-            "只验证SSH账号认证，不执行命令。密码和私钥使用Android Keystore加密保存在本机。",
+            "先检测DNS和SSH端口，再验证SSH账号；Ping通不代表SSH端口可连接。凭据仅加密保存在本机。",
             11f, muted
         )
         securityNote.setPadding(dp(3), dp(3), dp(3), dp(7))
@@ -211,17 +213,19 @@ class MainActivity : Activity() {
             }
             val check = button(if (checkingIds.contains(account.id)) "检测中" else "检测", Color.rgb(239, 246, 255), blue)
             val history = button("记录", Color.rgb(241, 245, 249), Color.rgb(51, 65, 85))
+            val details = button("详情", Color.rgb(254, 249, 195), Color.rgb(133, 77, 14))
             val edit = button("编辑", Color.rgb(241, 245, 249), Color.rgb(51, 65, 85))
             val delete = button("删除", Color.rgb(254, 242, 242), Color.rgb(220, 38, 38))
-            listOf(check, history, edit, delete).forEachIndexed { index, view ->
+            listOf(check, history, details, edit, delete).forEachIndexed { index, view ->
                 val params = LinearLayout.LayoutParams(0, dp(34), 1f)
-                if (index > 0) params.leftMargin = dp(6)
+                if (index > 0) params.leftMargin = dp(4)
                 actions.addView(view, params)
             }
             check.isEnabled = !checkingIds.contains(account.id) && !checkingAll
             check.alpha = if (check.isEnabled) 1f else 0.55f
             check.setOnClickListener { checkAccount(account) }
             history.setOnClickListener { showHistory(account) }
+            details.setOnClickListener { showDetail(account) }
             edit.setOnClickListener { showAccountDialog(account) }
             delete.setOnClickListener { confirmDelete(account) }
             val actionParams = LinearLayout.LayoutParams(-1, dp(40)).apply { topMargin = dp(8) }
@@ -245,9 +249,9 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
         }
         val host = EditText(this).apply {
-            hint = "服务器，例如 s4.serv00.com"
+            hint = "服务器，例如 cache9.serv00.com"
             setSingleLine(true)
-            setText(existing?.host ?: "s4.serv00.com")
+            setText(existing?.host ?: "cache9.serv00.com")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
         val port = EditText(this).apply {
@@ -411,10 +415,10 @@ class MainActivity : Activity() {
         val now = System.currentTimeMillis()
         account.lastCheck = now
         account.status = if (result.success) "SSH认证成功" else "登录失败"
-        account.detail = result.detail +
-            if (result.fingerprint.isNotBlank()) " · " + result.fingerprint else ""
+        account.detail = result.detail
+        account.diagnostics = result.diagnostics.ifBlank { result.detail }
         if (result.success) account.lastSuccess = now
-        account.history.add(0, CheckRecord(now, result.success, account.detail))
+        account.history.add(0, CheckRecord(now, result.success, account.detail, account.diagnostics))
         while (account.history.size > 30) account.history.removeAt(account.history.lastIndex)
         save()
         refreshList()
@@ -430,7 +434,8 @@ class MainActivity : Activity() {
         } else {
             account.history.joinToString("\n\n") { record ->
                 val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(record.time))
-                (if (record.success) "✓ 成功  " else "✕ 失败  ") + date + "\n" + record.detail
+                (if (record.success) "✓ 成功  " else "✕ 失败  ") + date + "\n" + record.detail +
+                    if (record.diagnostics.isNotBlank()) "\n\n详细诊断：\n" + record.diagnostics else ""
             }
         }
         val view = ScrollView(this).apply {
@@ -442,6 +447,34 @@ class MainActivity : Activity() {
             .setTitle(account.name + " · 检测历史")
             .setView(view)
             .setPositiveButton("关闭", null)
+            .show()
+    }
+
+    private fun showDetail(account: ServerAccount) {
+        val diagnosticText = buildString {
+            appendLine("账号：${account.name}")
+            appendLine("检测状态：${account.status}")
+            appendLine("结果摘要：${account.detail.ifBlank { "尚未检测" }}")
+            appendLine()
+            append(account.diagnostics.ifBlank { "暂无详细诊断，请先执行一次检测。" })
+        }
+        val body = label(diagnosticText, 12.5f, dark).apply {
+            setTextIsSelectable(true)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        val scroll = ScrollView(this).apply {
+            addView(body)
+            isFillViewport = true
+        }
+        AlertDialog.Builder(this)
+            .setTitle(account.name + " · SSH错误详情")
+            .setView(scroll)
+            .setPositiveButton("复制详情") { _, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Serv00 SSH检测详情", diagnosticText))
+                Toast.makeText(this, "检测详情已复制", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("关闭", null)
             .show()
     }
 
