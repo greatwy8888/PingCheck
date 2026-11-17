@@ -35,6 +35,7 @@ class SshChecker(context: Context) {
 
             stage = "DNS域名解析"
             val addresses = InetAddress.getAllByName(account.host)
+                .sortedBy { if (it.address.size == 4) 0 else 1 }
             if (addresses.isEmpty()) throw IOException("域名没有解析到IP地址")
             dnsDetail = addresses.joinToString(", ") { it.hostAddress }
 
@@ -71,7 +72,7 @@ class SshChecker(context: Context) {
                 jsch.addIdentity("serv00-" + account.id, privateKey, null, passphrase)
             }
 
-            session = jsch.getSession(account.username, account.host, account.port)
+            session = jsch.getSession(account.username, tcpConnectedAddress, account.port)
             session.setHostKeyAlias(account.host + ":" + account.port)
             session.setConfig("StrictHostKeyChecking", "yes")
             session.setConfig("PreferredAuthentications", "publickey,password")
@@ -91,6 +92,7 @@ class SshChecker(context: Context) {
                 appendLine("用户名：${account.username}")
                 appendLine("DNS解析：${dnsDetail}")
                 appendLine("TCP端口测试：${tcpDetail}")
+                appendLine("SSH实际连接IP：${tcpConnectedAddress}")
                 appendLine("SSH握手与用户认证：成功")
                 if (fingerprint.isNotBlank()) append("服务器主机密钥指纹：${fingerprint}")
             }.trim()
